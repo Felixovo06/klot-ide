@@ -1,6 +1,8 @@
-// 通用小组件：图标按钮、键帽、分段控制器、弹层关闭钩子
-import { useEffect, type ReactNode, type RefObject } from 'react';
+// 通用小组件：图标按钮、键帽、分段控制器、右键菜单与弹层关闭钩子
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { createPortal } from 'react-dom';
 import type { LucideIcon } from 'lucide-react';
+import { toast } from '../stores/uiStore';
 
 export const ICON_STROKE = 1.5;
 
@@ -103,4 +105,104 @@ export function GitStatusLetter({ status }: { status: string }) {
   const tone =
     status === 'D' ? 'error' : status === 'A' || status === '?' || status === 'U' ? 'success' : 'warning';
   return <span className={`onyx-git-letter is-${tone}`}>{letter}</span>;
+}
+
+export function copyToClipboard(text: string, label = '文本') {
+  void navigator.clipboard
+    ?.writeText(text)
+    .then(() => toast('success', `已复制${label}`))
+    .catch(() => toast('warning', '复制失败'));
+}
+
+export type ContextMenuEntry =
+  | { kind: 'divider'; key: string }
+  | {
+      kind?: 'item';
+      key: string;
+      label: string;
+      icon?: LucideIcon;
+      hint?: string;
+      danger?: boolean;
+      disabled?: boolean;
+      onSelect: () => void;
+    };
+
+/** 全局 Portal 右键菜单：自动夹取到视口范围，点击外部/滚动/Esc 自动关闭 */
+export function ContextMenu({
+  x,
+  y,
+  items,
+  onClose,
+}: {
+  x: number;
+  y: number;
+  items: ContextMenuEntry[];
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ left: x, top: y });
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const pad = 8;
+    const left = Math.max(pad, Math.min(x, window.innerWidth - rect.width - pad));
+    const top = Math.max(pad, Math.min(y, window.innerHeight - rect.height - pad));
+    setPos({ left, top });
+  }, [x, y, items.length]);
+
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    const onBlurOrScroll = () => onClose();
+    document.addEventListener('mousedown', onDown, true);
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('blur', onBlurOrScroll);
+    window.addEventListener('resize', onBlurOrScroll);
+    return () => {
+      document.removeEventListener('mousedown', onDown, true);
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('blur', onBlurOrScroll);
+      window.removeEventListener('resize', onBlurOrScroll);
+    };
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      ref={ref}
+      className="onyx-menu onyx-ctx-menu"
+      style={{ left: pos.left, top: pos.top }}
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      {items.map((it) => {
+        if (it.kind === 'divider') return <div key={it.key} className="onyx-menu-divider" />;
+        const Icon = it.icon;
+        return (
+          <button
+            key={it.key}
+            type="button"
+            disabled={it.disabled}
+            className={`onyx-menu-item${it.danger ? ' is-danger' : ''}`}
+            onClick={() => {
+              onClose();
+              it.onSelect();
+            }}
+          >
+            {Icon && <Icon size={14} strokeWidth={ICON_STROKE} />}
+            <span className="onyx-menu-label">{it.label}</span>
+            {it.hint && <span className="onyx-menu-hint">{it.hint}</span>}
+          </button>
+        );
+      })}
+    </div>,
+    document.body,
+  );
 }

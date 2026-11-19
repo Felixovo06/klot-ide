@@ -12,6 +12,7 @@ import {
   type GitCompareResult,
   type GitDiffResult,
   type GitGraphNode,
+  type GitStashEntry,
   type GitStatusResult,
   type LspDiagnosticsEvent,
   type LspServerStatus,
@@ -172,6 +173,7 @@ export async function runSmokeTest() {
 ]);
 
 let mockStagedSet = new Set<string>(['src/core/idempotency.ts']);
+let mockStashes: GitStashEntry[] = [];
 let mockBranches: GitBranchInfo[] = [
   { name: 'feat/idempotent-refund', isCurrent: true, isRemote: false },
   { name: 'main', isCurrent: false, isRemote: false },
@@ -366,9 +368,36 @@ export async function appGetContext(): Promise<AppContextInfo> {
       platform: 'macos',
       availableClis: ['claude', 'agy', 'pi', 'codex', 'zsh'],
       onyxPluginsDir: '/Users/demo/.ke/plugins',
+      fromCliArg: false,
     };
   }
   return invoke<AppContextInfo>('app_get_context');
+}
+
+export async function appPickWorkspace(defaultPath?: string | null): Promise<string | null> {
+  if (!isTauriRuntime()) {
+    const val = window.prompt('输入要打开的项目路径（演示模式）：', defaultPath ?? MOCK_ROOT);
+    const trimmed = val?.trim();
+    return trimmed ? trimmed : null;
+  }
+  return invoke<string | null>('app_pick_workspace', { defaultPath: defaultPath ?? null });
+}
+
+export async function appOpenWorkspaceWindow(root: string): Promise<void> {
+  if (!isTauriRuntime()) {
+    return;
+  }
+  return invoke<void>('app_open_workspace_window', { root });
+}
+
+export async function appOpenExternal(url: string): Promise<void> {
+  if (!isTauriRuntime()) {
+    if (typeof window !== 'undefined') {
+      window.open(url, '_blank', 'noopener');
+    }
+    return;
+  }
+  return invoke<void>('app_open_external', { url });
 }
 
 // ==================== 文件系统 (fs_tree.rs) ====================
@@ -437,6 +466,13 @@ export async function fsWatchWorkspace(root: string): Promise<void> {
     return;
   }
   return invoke<void>('fs_watch_workspace', { root });
+}
+
+export async function fsRevealInFinder(path: string): Promise<void> {
+  if (!isTauriRuntime()) {
+    return;
+  }
+  return invoke<void>('fs_reveal_in_finder', { path });
 }
 
 // ==================== 全库搜索 (search.rs) ====================
@@ -881,6 +917,61 @@ export async function gitDiffRefsFile(
     oldPath: oldPath ?? null,
     threeDot,
   });
+}
+
+export async function gitPush(root: string): Promise<string> {
+  if (!isTauriRuntime()) {
+    return '已推送至 origin (mock)';
+  }
+  return invoke<string>('git_push', { root });
+}
+
+export async function gitPull(root: string): Promise<string> {
+  if (!isTauriRuntime()) {
+    return 'Already up to date (mock)';
+  }
+  return invoke<string>('git_pull', { root });
+}
+
+export async function gitStashList(root: string): Promise<GitStashEntry[]> {
+  if (!isTauriRuntime()) {
+    return mockStashes.map((s) => ({ ...s }));
+  }
+  return invoke<GitStashEntry[]>('git_stash_list', { root });
+}
+
+export async function gitStashPush(root: string, message?: string | null): Promise<void> {
+  if (!isTauriRuntime()) {
+    const trimmed = message?.trim();
+    const next: GitStashEntry = {
+      index: 0,
+      refName: 'stash@{0}',
+      message: trimmed || 'WIP on feat/idempotent-refund',
+      relativeTime: 'just now',
+    };
+    mockStashes = [next, ...mockStashes].map((s, idx) => ({
+      ...s,
+      index: idx,
+      refName: `stash@{${idx}}`,
+    }));
+    return;
+  }
+  return invoke<void>('git_stash_push', { root, message: message ?? null });
+}
+
+export async function gitStashPop(root: string, index?: number | null): Promise<void> {
+  if (!isTauriRuntime()) {
+    const target = index ?? 0;
+    mockStashes = mockStashes
+      .filter((s) => s.index !== target)
+      .map((s, idx) => ({
+        ...s,
+        index: idx,
+        refName: `stash@{${idx}}`,
+      }));
+    return;
+  }
+  return invoke<void>('git_stash_pop', { root, index: index ?? null });
 }
 
 // ==================== 任务运行器 (task_runner.rs) ====================

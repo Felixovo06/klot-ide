@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { Eraser, X } from 'lucide-react';
+import { appOpenExternal } from '../lib/ipcClient';
 import { type LogLine, type RunInfo, useRunStore } from '../stores/runStore';
 import { EDITOR_MIN_HEIGHT, LAYOUT_LIMITS, useUiStore } from '../stores/uiStore';
 import { useWorkspaceStore } from '../stores/workspaceStore';
@@ -22,9 +23,9 @@ function renderLine(text: string): ReactNode[] {
     if (m[1]) {
       const url = m[1].replace(/[.,;]+$/, '');
       out.push(
-        <a key={i} className="onyx-log-link" href={url} target="_blank" rel="noreferrer">
+        <button key={i} type="button" className="onyx-log-link" onClick={() => void appOpenExternal(url)}>
           {url}
-        </a>,
+        </button>,
       );
       out.push(m[1].slice(url.length));
     } else if (m[2]) {

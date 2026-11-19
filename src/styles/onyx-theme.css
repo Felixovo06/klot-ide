@@ -734,7 +734,19 @@ body[data-resizing] .xterm {
 }
 
 .onyx-branch-menu {
-  width: 300px;
+  width: 316px;
+  max-height: calc(100vh - 64px);
+}
+
+.onyx-branch-menu .onyx-menu-scroll {
+  max-height: 240px;
+}
+
+.onyx-recent-projects-scroll {
+  max-height: 200px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .onyx-task-menu {
@@ -742,7 +754,7 @@ body[data-resizing] .xterm {
 }
 
 .onyx-settings-menu {
-  width: 260px;
+  width: 292px;
 }
 
 .onyx-cli-menu {
@@ -799,7 +811,8 @@ body[data-resizing] .xterm {
   transition: border-color var(--ag-duration-fast) var(--ag-ease-standard);
 }
 
-.onyx-branch-pill:hover {
+.onyx-branch-pill:hover,
+.onyx-branch-pill.is-open {
   border-color: var(--onyx-field-border-hover);
 }
 
@@ -985,11 +998,12 @@ body[data-resizing] .xterm {
 .onyx-sidebar-head-actions {
   display: flex;
   gap: 0;
-  opacity: 0;
+  opacity: 0.72;
   transition: opacity var(--ag-duration-fast) var(--ag-ease-standard);
 }
 
-.onyx-sidebar:hover .onyx-sidebar-head-actions {
+.onyx-sidebar:hover .onyx-sidebar-head-actions,
+.onyx-sidebar-head-actions:focus-within {
   opacity: 1;
 }
 
@@ -1588,6 +1602,22 @@ body[data-resizing] .xterm {
   justify-content: space-between;
   gap: 24px;
   font-size: var(--ag-text-sm);
+}
+
+.onyx-editor-empty-row.is-action {
+  width: calc(100% + 16px);
+  margin: 0 -8px;
+  padding: 5px 8px;
+  border-radius: var(--ag-radius-md);
+  color: var(--ag-content-secondary);
+  text-align: left;
+  transition: background-color var(--ag-duration-fast) var(--ag-ease-standard),
+    color var(--ag-duration-fast) var(--ag-ease-standard);
+}
+
+.onyx-editor-empty-row.is-action:hover {
+  background: var(--onyx-hover);
+  color: var(--ag-content-primary);
 }
 
 /* Monaco 细节 */
@@ -3553,4 +3583,308 @@ button.onyx-drawer-tab {
   gap: 6px;
   font-family: var(--onyx-font-mono);
   font-size: var(--ag-text-xs);
+}
+
+/* ==================== 第 5 轮基础能力样式 ==================== */
+
+.onyx-tree {
+  min-height: 100%;
+}
+
+.onyx-tree-row.is-editing {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.onyx-tree-inline-input {
+  flex: 1;
+  min-width: 0;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: var(--ag-radius-sm);
+  background: var(--onyx-field-bg);
+  border: 1px solid var(--ag-accent-default);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ag-accent-default) 16%, transparent);
+  color: var(--ag-content-primary);
+  font-size: var(--ag-text-sm);
+  outline: none;
+  user-select: text;
+}
+
+.onyx-ctx-menu {
+  position: fixed;
+  z-index: 120;
+  min-width: 210px;
+}
+
+.onyx-menu-item:disabled {
+  opacity: 0.42;
+}
+
+.onyx-menu-item:disabled:hover {
+  background: transparent;
+}
+
+.onyx-menu-item.is-danger {
+  color: var(--ag-status-error);
+}
+
+.onyx-menu-item.is-danger svg {
+  color: var(--ag-status-error);
+}
+
+.onyx-breadcrumb-item.is-clickable {
+  padding: 1px 4px;
+  margin: 0 -4px;
+  border-radius: var(--ag-radius-sm);
+  transition: background-color var(--ag-duration-fast) var(--ag-ease-standard),
+    color var(--ag-duration-fast) var(--ag-ease-standard);
+}
+
+.onyx-breadcrumb-item.is-clickable:hover {
+  background: var(--onyx-hover);
+  color: var(--ag-content-primary);
+}
+
+/* Git Push / Pull / Fetch & Stash */
+
+.onyx-git-nav {
+  gap: 2px;
+}
+
+.onyx-git-nav .onyx-segmented.is-sm .onyx-segmented-item {
+  padding: 0 5px;
+  font-size: 11px;
+}
+
+.onyx-git-remote-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  flex: none;
+}
+
+.onyx-remote-btn {
+  position: relative;
+  height: 22px;
+  min-width: 20px;
+  padding: 0 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border-radius: var(--ag-radius-sm);
+  color: var(--ag-content-secondary);
+  transition: background-color var(--ag-duration-fast) var(--ag-ease-standard),
+    color var(--ag-duration-fast) var(--ag-ease-standard);
+}
+
+.onyx-remote-btn:hover:not(:disabled) {
+  background: var(--onyx-hover);
+  color: var(--ag-content-primary);
+}
+
+.onyx-remote-btn:disabled {
+  opacity: 0.45;
+}
+
+.onyx-remote-btn.is-busy {
+  color: var(--ag-accent-default);
+}
+
+.onyx-remote-btn.is-publish::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 4px;
+  height: 4px;
+  border-radius: 9999px;
+  background: var(--ag-accent-default);
+}
+
+.onyx-remote-count {
+  font-family: var(--onyx-font-mono);
+  font-size: 10.5px;
+  line-height: 1;
+  color: var(--ag-accent-default);
+  font-weight: var(--ag-weight-semibold);
+}
+
+.onyx-stash-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 2px 6px;
+}
+
+.onyx-stash-form .onyx-input {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+}
+
+.onyx-stash-row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: var(--ag-radius-md);
+}
+
+.onyx-stash-row:hover {
+  background: var(--onyx-hover);
+}
+
+.onyx-stash-ref {
+  flex: none;
+  color: var(--ag-content-tertiary);
+  font-family: var(--onyx-font-mono);
+  font-size: var(--ag-text-xs);
+  line-height: 16px;
+}
+
+.onyx-stash-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.onyx-stash-pop {
+  flex: none;
+  opacity: 0.65;
+}
+
+.onyx-stash-row:hover .onyx-stash-pop {
+  opacity: 1;
+}
+
+/* Settings Modal 偏好控件 */
+
+.onyx-setting-section {
+  padding-top: 8px;
+  margin-top: 4px;
+  border-top: 1px solid var(--ag-border-default);
+  color: var(--ag-content-tertiary);
+  font-size: var(--ag-text-xs);
+  font-weight: var(--ag-weight-semibold);
+  letter-spacing: 0.02em;
+}
+
+.onyx-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--ag-radius-md);
+  background: var(--ag-onyx-well);
+}
+
+.onyx-stepper-btn {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--ag-radius-sm);
+  color: var(--ag-content-secondary);
+}
+
+.onyx-stepper-btn:hover:not(:disabled) {
+  background: var(--ag-onyx-selected);
+  color: var(--ag-content-primary);
+}
+
+.onyx-stepper-btn:disabled {
+  opacity: 0.38;
+}
+
+.onyx-stepper-val {
+  min-width: 52px;
+  text-align: center;
+  font-family: var(--onyx-font-mono);
+  font-size: var(--ag-text-xs);
+  color: var(--ag-content-primary);
+}
+
+.onyx-switch {
+  width: 34px;
+  height: 20px;
+  padding: 2px;
+  border-radius: 9999px;
+  background: var(--ag-onyx-well);
+  border: 1px solid var(--ag-border-card);
+  display: inline-flex;
+  align-items: center;
+  transition: background-color var(--ag-duration-fast) var(--ag-ease-standard),
+    border-color var(--ag-duration-fast) var(--ag-ease-standard);
+}
+
+.onyx-switch.is-on {
+  background: var(--ag-accent-default);
+  border-color: var(--ag-accent-default);
+}
+
+.onyx-switch-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgb(10 10 12 / 0.22);
+  transform: translateX(0);
+  transition: transform var(--ag-duration-fast) var(--ag-ease-expo-out);
+}
+
+.onyx-switch.is-on .onyx-switch-thumb {
+  transform: translateX(14px);
+}
+
+/* 自定义运行任务 */
+
+.onyx-task-menu-list {
+  max-height: 240px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.onyx-task-row {
+  cursor: default;
+}
+
+.onyx-task-del {
+  opacity: 0;
+  color: var(--ag-content-tertiary);
+}
+
+.onyx-task-row:hover .onyx-task-del {
+  opacity: 1;
+}
+
+.onyx-task-del:hover {
+  color: var(--ag-status-error);
+}
+
+.onyx-task-custom-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 6px 4px;
+}
+
+.onyx-task-custom-form .onyx-input {
+  height: 28px;
+}
+
+.onyx-task-custom-row {
+  display: flex;
+  gap: 6px;
+}
+
+.onyx-task-custom-row .onyx-input {
+  flex: 1;
+  min-width: 0;
 }

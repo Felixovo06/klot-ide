@@ -1,9 +1,17 @@
-import { ChevronsDownUp, Filter, RefreshCw } from 'lucide-react';
+import {
+  ChevronsDownUp,
+  FilePlus,
+  Filter,
+  FolderOpen,
+  FolderPlus,
+  RefreshCw,
+} from 'lucide-react';
 import { useUiStore } from '../stores/uiStore';
 import { useWorkspaceStore } from '../stores/workspaceStore';
 import { FileTree } from './FileTree';
 import { GitPanel } from './GitPanel';
 import { SearchPanel } from './SearchPanel';
+import { formatShortcut } from './shortcuts';
 import { ICON_STROKE, IconButton, Segmented } from './ui';
 
 export function LeftSidebar() {
@@ -14,6 +22,8 @@ export function LeftSidebar() {
   const setFilter = useWorkspaceStore((s) => s.setFilter);
   const refreshTree = useWorkspaceStore((s) => s.refreshTree);
   const collapseAll = useWorkspaceStore((s) => s.collapseAll);
+  const promptOpenWorkspace = useWorkspaceStore((s) => s.promptOpenWorkspace);
+  const startTreeCreate = useWorkspaceStore((s) => s.startTreeCreate);
 
   return (
     <aside className="onyx-sidebar">
@@ -30,6 +40,24 @@ export function LeftSidebar() {
           />
           {leftTab === 'files' && (
             <div className="onyx-sidebar-head-actions">
+              <IconButton
+                icon={FilePlus}
+                size={14}
+                title="新建文件"
+                onClick={() => startTreeCreate('file')}
+              />
+              <IconButton
+                icon={FolderPlus}
+                size={14}
+                title="新建文件夹"
+                onClick={() => startTreeCreate('dir')}
+              />
+              <IconButton
+                icon={FolderOpen}
+                size={14}
+                title={`打开项目文件夹 (${formatShortcut('Cmd+O')})`}
+                onClick={() => void promptOpenWorkspace()}
+              />
               <IconButton icon={RefreshCw} size={13} title="刷新" onClick={() => void refreshTree()} />
               <IconButton icon={ChevronsDownUp} size={14} title="全部折叠" onClick={collapseAll} />
             </div>

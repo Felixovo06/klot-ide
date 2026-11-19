@@ -13,6 +13,7 @@ pub struct AppContextInfo {
     pub platform: String,
     pub available_clis: Vec<String>,
     pub onyx_plugins_dir: String,
+    pub from_cli_arg: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -22,6 +23,7 @@ pub struct AppEnv {
     pub home_dir: String,
     pub default_workspace: String,
     pub ke_plugins_dir: String,
+    pub from_cli_arg: bool,
 }
 
 impl AppEnv {
@@ -44,7 +46,7 @@ impl AppEnv {
         let merged_path = merge_standard_paths(&existing_path, &home_dir);
         vars.insert("PATH".to_string(), merged_path.clone());
 
-        let default_workspace = detect_default_workspace(&home_dir);
+        let (default_workspace, from_cli_arg) = detect_default_workspace(&home_dir);
         let ke_plugins_dir = Path::new(&home_dir)
             .join(".ke")
             .join("plugins")
@@ -57,6 +59,7 @@ impl AppEnv {
             home_dir,
             default_workspace,
             ke_plugins_dir,
+            from_cli_arg,
         }
     }
 
@@ -138,22 +141,35 @@ pub fn resolve_workspace_from_arg(arg: Option<&str>, cwd: Option<&Path>) -> Opti
         .map(|canon| canon.to_string_lossy().into_owned())
 }
 
-fn detect_default_workspace(home_dir: &str) -> String {
-    let cwd = std::env::current_dir().ok();
-    if let Some(from_arg) = resolve_workspace_from_arg(std::env::args().nth(1).as_deref(), cwd.as_deref()) {
-        return from_arg;
+pub fn detect_workspace_fallback(
+    arg: Option<&str>,
+    cwd: Option<&Path>,
+    home_dir: &str,
+) -> (String, bool) {
+    if let Some(from_arg) = resolve_workspace_from_arg(arg, cwd) {
+        return (from_arg, true);
     }
     if let Some(cwd_path) = cwd {
+        // macOS Finder/Dock 双击启动 .app 时 cwd 通常为根目录 "/"，此时回落至用户主目录
+        if cwd_path == Path::new("/") {
+            return (home_dir.to_string(), false);
+        }
         let resolved = if cwd_path.file_name().and_then(|n| n.to_str()) == Some("src-tauri") {
-            cwd_path.parent().map(|p| p.to_path_buf()).unwrap_or(cwd_path)
+            cwd_path.parent().map(|p| p.to_path_buf()).unwrap_or(cwd_path.to_path_buf())
         } else {
-            cwd_path
+            cwd_path.to_path_buf()
         };
-        if resolved.exists() {
-            return resolved.to_string_lossy().into_owned();
+        if resolved.exists() && resolved != Path::new("/") {
+            return (resolved.to_string_lossy().into_owned(), false);
         }
     }
-    home_dir.to_string()
+    (home_dir.to_string(), false)
+}
+
+fn detect_default_workspace(home_dir: &str) -> (String, bool) {
+    let cwd = std::env::current_dir().ok();
+    let arg = std::env::args().nth(1);
+    detect_workspace_fallback(arg.as_deref(), cwd.as_deref(), home_dir)
 }
 
 fn capture_login_shell_env(timeout: Duration) -> Option<HashMap<String, String>> {
@@ -253,6 +269,96 @@ pub fn app_get_context(env: State<'_, AppEnv>) -> AppContextInfo {
         platform: std::env::consts::OS.to_string(),
         available_clis: env.available_clis(),
         onyx_plugins_dir: env.ke_plugins_dir.clone(),
+        from_cli_arg: env.from_cli_arg,
+    }
+}
+
+fn resolve_picker_start_dir(default_path: Option<&str>, home_dir: &str) -> PathBuf {
+    if let Some(raw) = default_path.map(str::trim).filter(|s| !s.is_empty()) {
+        let p = Path::new(raw);
+        if p.is_dir() {
+            return p.to_path_buf();
+        }
+        if p.is_file() {
+            if let Some(parent) = p.parent() {
+                if parent.is_dir() {
+                    return parent.to_path_buf();
+                }
+            }
+        }
+    }
+    PathBuf::from(home_dir)
+}
+
+#[tauri::command]
+pub async fn app_pick_workspace(
+    env: State<'_, AppEnv>,
+    default_path: Option<String>,
+) -> Result<Option<String>, String> {
+    let start_dir = resolve_picker_start_dir(default_path.as_deref(), &env.home_dir);
+    let picked = rfd::AsyncFileDialog::new()
+        .set_title("打开项目文件夹")
+        .set_directory(&start_dir)
+        .pick_folder()
+        .await;
+
+    let Some(handle) = picked else {
+        return Ok(None);
+    };
+    let path = handle.path();
+    let canon = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    Ok(Some(canon.to_string_lossy().into_owned()))
+}
+
+pub fn open_workspace_window_args(root: &str) -> Result<(PathBuf, String), String> {
+    let trimmed = root.trim();
+    let p = Path::new(trimmed);
+    if !p.is_dir() {
+        return Err(format!("目标工作区目录不存在: {}", root));
+    }
+    let canon = std::fs::canonicalize(p)
+        .map_err(|e| format!("解析工作区路径失败 {}: {}", root, e))?;
+    let exe = std::env::current_exe()
+        .map_err(|e| format!("获取当前应用可执行路径失败: {}", e))?;
+    Ok((exe, canon.to_string_lossy().into_owned()))
+}
+
+#[tauri::command]
+pub fn app_open_workspace_window(root: String) -> Result<(), String> {
+    let (exe, canon_root) = open_workspace_window_args(&root)?;
+    Command::new(exe)
+        .arg(&canon_root)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| format!("启动新窗口失败: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn app_open_external(url: String) -> Result<(), String> {
+    let trimmed = url.trim();
+    if !(trimmed.starts_with("http://") || trimmed.starts_with("https://")) {
+        return Err("仅允许打开 http:// 或 https:// 外部链接".to_string());
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let status = tokio::process::Command::new("/usr/bin/open")
+            .arg(trimmed)
+            .status()
+            .await
+            .map_err(|e| format!("打开外部链接失败: {}", e))?;
+        if !status.success() {
+            return Err(format!("无法打开外部链接: {}", trimmed));
+        }
+        Ok(())
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        Err("当前操作系统暂不支持打开外部浏览器".to_string())
     }
 }
 
@@ -315,6 +421,24 @@ mod tests {
         // 忽略 macOS Finder -psn_* 参数与不存在路径
         assert_eq!(resolve_workspace_from_arg(Some("-psn_0_12345"), None), None);
         assert_eq!(resolve_workspace_from_arg(Some("/nonexistent/ke/path"), None), None);
+
+        // 根目录 "/" (Finder 启动默认 cwd) 应回退到 home_dir 且 from_cli_arg == false
+        let (ws_root, from_arg_root) =
+            detect_workspace_fallback(None, Some(Path::new("/")), "/Users/tester");
+        assert_eq!(ws_root, "/Users/tester");
+        assert!(!from_arg_root);
+
+        // 显式传参目录时 from_cli_arg == true
+        let (ws_cli, from_arg_cli) =
+            detect_workspace_fallback(Some(canon_repo.as_str()), Some(Path::new("/")), "/Users/tester");
+        assert_eq!(ws_cli, canon_repo);
+        assert!(from_arg_cli);
+
+        // 新窗口参数准备校验
+        let (exe, win_root) = open_workspace_window_args(&canon_repo).unwrap();
+        assert!(exe.exists());
+        assert_eq!(win_root, canon_repo);
+        assert!(open_workspace_window_args("/nonexistent/ke/window/path").is_err());
 
         let _ = std::fs::remove_dir_all(&tmp);
     }

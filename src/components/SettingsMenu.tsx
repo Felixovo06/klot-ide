@@ -1,7 +1,8 @@
 import { useCallback, useRef, useState } from 'react';
-import { Keyboard, Moon, Puzzle, Settings, Sun, Zap } from 'lucide-react';
+import { AppWindow, FolderOpen, Keyboard, Moon, Puzzle, Settings, Sun, Zap } from 'lucide-react';
 import { usePluginStore } from '../stores/pluginStore';
 import { useUiStore } from '../stores/uiStore';
+import { useWorkspaceStore } from '../stores/workspaceStore';
 import { formatShortcut } from './shortcuts';
 import { ICON_STROKE, IconButton, useDismiss } from './ui';
 
@@ -44,6 +45,17 @@ export function SettingsMenu() {
       <IconButton icon={Settings} title="设置菜单" active={open} onClick={() => setOpen((v) => !v)} />
       {open && (
         <div className="onyx-menu onyx-menu-right onyx-settings-menu">
+          {item('open-folder', <FolderOpen size={15} strokeWidth={ICON_STROKE} />, 'Open Folder...', formatShortcut('Cmd+O'), () =>
+            void useWorkspaceStore.getState().promptOpenWorkspace(),
+          )}
+          {item(
+            'open-window',
+            <AppWindow size={15} strokeWidth={ICON_STROKE} />,
+            'Open in New Window...',
+            formatShortcut('Cmd+Shift+O'),
+            () => void useWorkspaceStore.getState().promptOpenWorkspaceInNewWindow(),
+          )}
+          <div className="onyx-menu-divider" />
           {item('ext', <Puzzle size={15} strokeWidth={ICON_STROKE} />, 'Extensions', formatShortcut('Cmd+Shift+X'), () =>
             setModal('extensions'),
           )}

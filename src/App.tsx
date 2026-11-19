@@ -2,12 +2,12 @@ import { useEffect } from 'react';
 import { CenterCanvas } from './components/CenterCanvas';
 import { InfoModals } from './components/InfoModals';
 import { LeftSidebar } from './components/LeftSidebar';
-import { setMonacoTheme } from './components/monacoSetup';
+import { applyMonacoPrefs, setMonacoTheme } from './components/monacoSetup';
 import { QuickOpenModal } from './components/QuickOpenModal';
 import { ResizeHandle } from './components/ResizeHandle';
 import { RightCliDock } from './components/RightCliDock';
 import { useGlobalShortcuts } from './components/shortcuts';
-import { applyTerminalTheme } from './components/terminalRegistry';
+import { applyTerminalFontSize, applyTerminalTheme } from './components/terminalRegistry';
 import { ToastHost } from './components/ToastHost';
 import { TopBar } from './components/TopBar';
 import { bootstrapApp } from './stores/bootstrap';
@@ -29,6 +29,7 @@ export function App() {
   const setCliWidth = useUiStore((s) => s.setCliWidth);
   const resetLeftWidth = useUiStore((s) => s.resetLeftWidth);
   const resetCliWidth = useUiStore((s) => s.resetCliWidth);
+  const prefs = useUiStore((s) => s.prefs);
 
   useGlobalShortcuts();
 
@@ -39,6 +40,11 @@ export function App() {
     setMonacoTheme(theme);
     applyTerminalTheme(theme);
   }, [theme]);
+
+  useEffect(() => {
+    applyMonacoPrefs({ tabSize: prefs.tabSize });
+    applyTerminalFontSize(prefs.terminalFontSize);
+  }, [prefs.tabSize, prefs.terminalFontSize]);
 
   useEffect(() => {
     void bootstrapApp();

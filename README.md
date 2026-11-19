@@ -43,30 +43,30 @@
 
 ## 核心特性
 
-### 1. 代码浏览、检索与编辑
+### 1. 项目管理、代码浏览与编辑
 
-- 嵌入微软原版 **Monaco Editor**，提供轻量高对比度日间语法配色、单行多标签切换、面包屑导航与隐藏式 Minimap，专注横向阅读体验。
-- 基于 `ignore` crate 构建高速目录树，自动遵循 `.gitignore` 并过滤 `.git`、`node_modules`、`target`、`dist` 等目录；通过 `notify-debouncer-mini` 实时监听磁盘与 `.git` 元数据改动，外部或 CLI 改码后无感刷新。
-- 内嵌 `ripgrep` 核心搜索引擎（`grep-searcher` + `grep-regex`），支持大小写敏感、正则表达式与全库流式检索及安全替换。
-- 支持 `Cmd+P` 全局快速跳转文件、符号（`@`）与命令（`>`），并按文件语言懒启动本机 LSP（TypeScript/JavaScript、Rust、Python、Go），缺省语言服务时优雅降级。
+- **打开与切换项目**：支持通过左上角项目胶囊、`Files` 工具栏、齿轮菜单或快捷键 `Cmd+O` / `Cmd+Shift+O` 调用系统原生目录选择器在当前窗口切换项目或开启独立新窗口；自动持久化最近 10 个项目（`Recent Projects`）并支持秒切，切换时隔离重置旧工作区 Monaco 模型、运行任务、PTY 会话、Git 缓存与文件/插件监听。
+- **文件树与右键工作流**：基于 `ignore` crate 构建高速目录树，自动遵循 `.gitignore` 并过滤 `.git`、`node_modules`、`target`、`dist` 等目录；支持内联新建文件/文件夹、内联重命名（同步迁移已打开标签及子路径）、确认删除，以及完整的右键菜单（新建、重命名、删除、引用到 CLI、在此目录打开终端、复制相对/绝对路径、`在 Finder 中显示`）。
+- **多标签与可交互编辑区**：嵌入微软原版 **Monaco Editor**，隐藏 Minimap 专注横向阅读；支持标签右键菜单（关闭、关闭其他、关闭右侧、关闭已保存、全部关闭等）、`Cmd+Shift+T` 恢复关闭标签、`Cmd+Alt+S` 全部保存；支持可交互面包屑（点击目录段在左侧栏展开、点击末尾符号段唤起 `@` 符号跳转）以及 `Cmd+G` / `:line[:col]` 快速跳行。
+- **全库检索、LSP 与实时偏好设置**：内嵌 `ripgrep` 核心搜索引擎（`grep-searcher` + `grep-regex`），支持大小写、正则流式检索与安全替换；按语言懒启动本机 LSP（TypeScript/JavaScript、Rust、Python、Go）；Settings 面板支持实时调节编辑器与终端字号、自动换行、Tab 宽度、停止输入自动保存与保存时去除尾随空白。
 
 ### 2. Git 三视图工作台
 
 - 顶栏 `[ Code | Git ]` 一键切换，在编辑器行号旁实时显示 2px 行级变更指示条（Gutter）。
-- **Changes**：提供暂存、取消暂存、丢弃改动、提交说明输入与提交操作，支持 Monaco `Inline | Split` 双栏 Diff 审查。
+- **Changes**：提供 `Pull`（快进拉取与 `behind` 计数）、`Push`（自动 `-u` 推送与 `ahead` 计数）、`Fetch` 紧凑同步栏，支持暂存、取消暂存、丢弃改动、备注 `Stash` 暂存与 `Stashes` 一键 `Pop`、提交说明输入与提交，配合 Monaco `Inline | Split` 双栏 Diff 审查。
 - **Graph**：支持全分支或当前分支拓扑浏览，展示多轨道分叉与合并连线、`HEAD` / 本地分支 / 远端分支 / Tag 内联徽章、完整提交详情及单文件历史 Diff。
-- **Compare**：支持任意本地分支、远端分支、Tag 与当前工作区（`WORKTREE`）间的 `...` / `..` 差异对比，并提供一键 `Fetch` 远端同步与未启用 Git 目录一键 `git init` 初始化（完整兼容 0-commit 初生仓库）。
+- **Compare**：支持任意本地分支、远端分支、Tag 与当前工作区（`WORKTREE`）间的 `...` / `..` 差异对比，并支持未启用 Git 目录一键 `git init` 初始化（完整兼容 0-commit 初生仓库）。
 
 ### 3. Coding CLI 启动器与多会话 PTY 舱
 
-- 启动时零后台进程驻留，右侧展示简洁的 `Coding CLI` 启动器首页，按需点击启动本机 `Claude Code`（`claude`）、`Antigravity`（`agy`）、`Pi`（`pi`）、`Codex`（`codex`）或交互式登录 `Terminal`（`zsh`）。
+- 启动时零后台进程驻留，右侧展示简洁的 `Coding CLI` 启动器首页，按需点击启动本机 `Claude Code`（`claude`）、`Antigravity`（`agy`）、`Pi`（`pi`）、`Codex`（`codex`）或交互式登录 `Terminal`（`zsh`），也可从文件树右键指定目录直接开启终端。
 - 基于 `portable-pty` 与 `tauri::ipc::Channel<Vec<u8>>` 直推字节流到 `@xterm/xterm`，按当前界面亮/暗色主题自动注入 `COLORFGBG` 信号。
-- 支持编辑器 `Cmd+L` 将选中代码行包装为 `@file#Lstart-end` 上下文芯片投喂给 CLI，并支持在终端输出中点击文件路径直接跳回左侧编辑器对应行。
+- 支持编辑器 `Cmd+L` 将选中代码行包装为 `@file#Lstart-end` 上下文芯片投喂给 CLI，支持在终端输出中点击文件路径跳回左侧编辑器对应行，以及点击 `http(s)://` 链接拉起系统默认浏览器。
 
 ### 4. 进程组级项目运行控制台
 
-- 自动扫描工作区根目录 `package.json`、`Cargo.toml`、`Makefile` 与 `.ke/tasks.json` 发现可执行任务，也支持运行自定义命令。
-- 控制台仅在中间代码画布底部按需展开，保持左侧栏与右侧 CLI 舱 100% 全高；自动高亮错误堆栈与本地监听地址。
+- 自动扫描工作区根目录 `package.json`、`Cargo.toml`、`Makefile` 与 `.ke/tasks.json` 发现可执行任务，并支持在运行目标下拉菜单按工作区添加、持久化与删除自定义运行命令。
+- 控制台仅在中间代码画布底部按需展开，保持左侧栏与右侧 CLI 舱 100% 全高；自动高亮错误堆栈与本地监听地址（点击 `http(s)://` 直接在系统浏览器打开）。
 - 启动任务时建立独立 Unix 进程组（`process_group(0)`），停止或重启时通过 `killpg`（`SIGTERM` + 超时补 `SIGKILL`）彻底回收子进程树，避免端口残留。
 
 ### 5. 自生长本地 CLI 插件引擎与自由拖拽布局
@@ -77,17 +77,17 @@
 
 ## 系统架构
 
-Klot IDE 采用前后端严格分离设计，全部 IPC 命令与事件类型以 `./src/types/ipc.ts` 与 `./src/lib/ipcClient.ts` 为契约基准（共 41 个 Tauri Command 与 3 类推送事件），并在非 Tauri 浏览器环境下提供优雅降级 Mock。
+Klot IDE 采用前后端严格分离设计，全部 IPC 命令与事件类型以 `./src/types/ipc.ts` 与 `./src/lib/ipcClient.ts` 为契约基准（共 50 个 Tauri Command 与 3 类推送事件），并在非 Tauri 浏览器环境下提供优雅降级 Mock。
 
 | 层级 / 模块 | 文件位置 | 核心职责 |
 | --- | --- | --- |
 | 前端界面与状态层 | `src/components/`、`src/stores/` | React + Zustand 状态管理、Monaco Editor / DiffEditor、xterm.js 多会话终端、三栏拖拽布局 |
-| IPC 契约与客户端 | `src/types/ipc.ts`、`src/lib/ipcClient.ts` | 41 个前后端命令类型定义、`invoke`/`Channel`/`listen` 封装与浏览器预览 Mock |
-| 环境与上下文同步 | `src-tauri/src/env_path.rs` | 登录 Shell `env -0` 同步、常用开发路径与 CLI 探测、命令行目录参数解析 |
-| 目录树与文件监听 | `src-tauri/src/fs_tree.rs` | `ignore` 快速扫树、文件读写创建重命名删除、`notify` 防抖广播 `fs:changed` |
+| IPC 契约与客户端 | `src/types/ipc.ts`、`src/lib/ipcClient.ts` | 50 个前后端命令类型定义、`invoke`/`Channel`/`listen` 封装与浏览器预览 Mock |
+| 环境与窗口管理 | `src-tauri/src/env_path.rs` | 登录 Shell `env -0` 同步、CLI 探测、原生文件夹选择、多窗口启动与系统浏览器拉起 |
+| 目录树与文件监听 | `src-tauri/src/fs_tree.rs` | `ignore` 快速扫树、文件/目录增删改、Finder 定位、`notify` 防抖广播 `fs:changed` |
 | 全库搜索与替换 | `src-tauri/src/search.rs` | 内嵌 `ripgrep` 流式检索（`Channel`）与正则/大小写全库替换 |
-| Git 工作台后端 | `src-tauri/src/git_ops.rs` | 异步调用本机 `git` CLI，支撑状态、初生仓库初始化、拓扑树、提交详情与跨分支 Diff |
-| 任务运行器 | `src-tauri/src/task_runner.rs` | 自动发现脚本任务、流式输出日志与进程组级 `killpg` 停止/重启 |
+| Git 工作台后端 | `src-tauri/src/git_ops.rs` | 异步调用本机 `git` CLI，支撑状态、初始化、拓扑树、跨分支对比、Pull/Push 与 Stash |
+| 任务运行器 | `src-tauri/src/task_runner.rs` | 自动发现脚本任务、自定义命令执行、流式输出日志与进程组级 `killpg` 停止/重启 |
 | 本地 PTY 终端舱 | `src-tauri/src/pty_dock.rs` | `portable-pty` 多会话管理、高频字节流通道、环境变量与上下文注入 |
 | 按需 LSP 桥接 | `src-tauri/src/lsp_bridge.rs` | 懒启动本机语言服务器、`Content-Length` JSON-RPC 帧收发与 `lsp:diagnostics` 转发 |
 | 自生长插件宿主 | `src-tauri/src/plugin_host.rs` | 生成 `~/.ke/plugins/SPEC.md`、监听目录热更新 `plugins:updated`、stdin/stdout JSON 执行 |
@@ -199,8 +199,11 @@ npm run icon:apply -- /path/to/icon.png --crop 68
 
 | 快捷键 | 功能说明 |
 | --- | --- |
+| `Cmd+O` | 打开项目文件夹 |
+| `Cmd+Shift+O` | 在新窗口中打开项目 |
 | `Cmd+P` | 快速跳转文件 / `@` 符号 / `>` 命令 |
 | `Cmd+Shift+P` | 打开命令面板 |
+| `Cmd+G` | 跳转到指定行（`:line`） |
 | `Cmd+1` | 切换到 Code 编辑模式 |
 | `Cmd+2` | 切换到 Git 审查与对比模式 |
 | `Cmd+B` | 显示 / 隐藏左侧边栏 |
@@ -208,6 +211,15 @@ npm run icon:apply -- /path/to/icon.png --crop 68
 | `Cmd+\`` | 显示 / 隐藏底部运行控制台 |
 | `Cmd+Shift+F` | 聚焦全库文本搜索面板 |
 | `Cmd+S` | 保存当前打开的文件 |
+| `Cmd+Alt+S` | 保存全部文件 |
+| `Cmd+W` | 关闭当前标签 |
+| `Cmd+Shift+T` | 恢复最近关闭标签 |
+| `Cmd+Shift+[` | 切换到上一个标签 |
+| `Cmd+Shift+]` | 切换到下一个标签 |
+| `Alt+Z` | 切换自动换行 |
+| `Cmd+=` | 放大编辑器字号 |
+| `Cmd+-` | 缩小编辑器字号 |
+| `Cmd+0` | 重置编辑器字号 |
 | `Cmd+L` | 将当前代码选区作为上下文芯片发送到 CLI |
 | `Cmd+,` | 打开应用设置弹窗 |
 | `Cmd+Shift+X` | 打开扩展与插件管理弹窗 |

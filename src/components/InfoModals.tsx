@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { RefreshCw, X } from 'lucide-react';
+import { Minus, Plus, RefreshCw, X } from 'lucide-react';
 import { lspStatus } from '../lib/ipcClient';
 import type { LspServerStatus } from '../types/ipc';
 import { usePluginStore } from '../stores/pluginStore';
@@ -78,6 +78,8 @@ function ExtensionsModal() {
 function SettingsModal() {
   const theme = useUiStore((s) => s.theme);
   const setTheme = useUiStore((s) => s.setTheme);
+  const prefs = useUiStore((s) => s.prefs);
+  const setPref = useUiStore((s) => s.setPref);
   const ctx = useWorkspaceStore((s) => s.ctx);
   const root = useWorkspaceStore((s) => s.root);
   const [lsp, setLsp] = useState<LspServerStatus[] | null>(null);
@@ -107,6 +109,106 @@ function SettingsModal() {
           ]}
         />
       </div>
+
+      <div className="onyx-setting-section">Editor &amp; Terminal</div>
+      <div className="onyx-setting-row">
+        <span className="onyx-setting-label">Editor Font Size</span>
+        <div className="onyx-stepper">
+          <button
+            type="button"
+            className="onyx-stepper-btn"
+            disabled={prefs.editorFontSize <= 12}
+            onClick={() => setPref('editorFontSize', prefs.editorFontSize - 1)}
+            title="减小字号"
+          >
+            <Minus size={12} strokeWidth={ICON_STROKE} />
+          </button>
+          <span className="onyx-stepper-val">{prefs.editorFontSize} px</span>
+          <button
+            type="button"
+            className="onyx-stepper-btn"
+            disabled={prefs.editorFontSize >= 18}
+            onClick={() => setPref('editorFontSize', prefs.editorFontSize + 1)}
+            title="增大字号"
+          >
+            <Plus size={12} strokeWidth={ICON_STROKE} />
+          </button>
+        </div>
+      </div>
+      <div className="onyx-setting-row">
+        <span className="onyx-setting-label">Word Wrap</span>
+        <Segmented
+          size="sm"
+          value={prefs.wordWrap}
+          onChange={(v) => setPref('wordWrap', v)}
+          options={[
+            { value: 'off', label: 'Off' },
+            { value: 'on', label: 'On' },
+          ]}
+        />
+      </div>
+      <div className="onyx-setting-row">
+        <span className="onyx-setting-label">Tab Size</span>
+        <Segmented
+          size="sm"
+          value={String(prefs.tabSize) as '2' | '4'}
+          onChange={(v) => setPref('tabSize', Number(v) as 2 | 4)}
+          options={[
+            { value: '2', label: '2 spaces' },
+            { value: '4', label: '4 spaces' },
+          ]}
+        />
+      </div>
+      <div className="onyx-setting-row">
+        <span className="onyx-setting-label">Auto Save (1s)</span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={prefs.autoSave}
+          className={`onyx-switch${prefs.autoSave ? ' is-on' : ''}`}
+          onClick={() => setPref('autoSave', !prefs.autoSave)}
+        >
+          <span className="onyx-switch-thumb" />
+        </button>
+      </div>
+      <div className="onyx-setting-row">
+        <span className="onyx-setting-label">Trim Trailing Whitespace</span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={prefs.trimTrailingWhitespace}
+          className={`onyx-switch${prefs.trimTrailingWhitespace ? ' is-on' : ''}`}
+          onClick={() => setPref('trimTrailingWhitespace', !prefs.trimTrailingWhitespace)}
+        >
+          <span className="onyx-switch-thumb" />
+        </button>
+      </div>
+      <div className="onyx-setting-row">
+        <span className="onyx-setting-label">Terminal Font Size</span>
+        <div className="onyx-stepper">
+          <button
+            type="button"
+            className="onyx-stepper-btn"
+            disabled={prefs.terminalFontSize <= 11}
+            onClick={() => setPref('terminalFontSize', prefs.terminalFontSize - 0.5)}
+            title="减小终端字号"
+          >
+            <Minus size={12} strokeWidth={ICON_STROKE} />
+          </button>
+          <span className="onyx-stepper-val">{prefs.terminalFontSize} px</span>
+          <button
+            type="button"
+            className="onyx-stepper-btn"
+            disabled={prefs.terminalFontSize >= 16}
+            onClick={() => setPref('terminalFontSize', prefs.terminalFontSize + 0.5)}
+            title="增大终端字号"
+          >
+            <Plus size={12} strokeWidth={ICON_STROKE} />
+          </button>
+        </div>
+      </div>
+
+      <div className="onyx-setting-section">Environment</div>
       <div className="onyx-setting-row">
         <span className="onyx-setting-label">Workspace</span>
         <code className="onyx-setting-value">{root || '-'}</code>

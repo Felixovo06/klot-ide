@@ -430,6 +430,7 @@ mod tests {
             home_dir: "/tmp".to_string(),
             default_workspace: "/tmp".to_string(),
             ke_plugins_dir: "/tmp/.ke/plugins".to_string(),
+            from_cli_arg: false,
         };
         let state = LspState::new();
 

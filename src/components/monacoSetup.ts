@@ -56,15 +56,25 @@ export const EDITOR_BASE_OPTIONS: monaco.editor.IStandaloneEditorConstructionOpt
 
 interface MonacoHooks {
   onDirtyChange: (fullPath: string, dirty: boolean) => void;
+  onContentChange: (fullPath: string) => void;
   onOpenFile: (fullPath: string, line?: number, column?: number) => void;
 }
 
 const hooks: MonacoHooks = {
   onDirtyChange: () => {},
+  onContentChange: () => {},
   onOpenFile: () => {},
 };
 
 let workspaceRoot = '';
+let currentTabSize = 2;
+
+export function applyMonacoPrefs(prefs: { tabSize: number }) {
+  currentTabSize = prefs.tabSize;
+  for (const entry of fileModels.values()) {
+    entry.model.updateOptions({ tabSize: prefs.tabSize, indentSize: prefs.tabSize });
+  }
+}
 
 export function setMonacoHooks(next: Partial<MonacoHooks>) {
   Object.assign(hooks, next);
@@ -227,6 +237,7 @@ export function ensureFileModel(fullPath: string, content: string): monaco.edito
   } else {
     model = monaco.editor.createModel(content, language, uri);
   }
+  model.updateOptions({ tabSize: currentTabSize, indentSize: currentTabSize });
   uriToFull.set(uri.toString(), fullPath);
 
   const lspLang = lspLangForPath(fullPath);
@@ -243,6 +254,7 @@ export function ensureFileModel(fullPath: string, content: string): monaco.edito
 
   entry.disposable = model.onDidChangeContent(() => {
     updateDirty(entry);
+    hooks.onContentChange(fullPath);
     if (entry.lspLang) {
       if (entry.changeTimer) clearTimeout(entry.changeTimer);
       entry.changeTimer = setTimeout(() => {
@@ -311,6 +323,21 @@ export function disposeFileModel(fullPath: string) {
   uriToFull.delete(entry.model.uri.toString());
   fileModels.delete(fullPath);
   entry.model.dispose();
+}
+
+/** 文件或目录重命名时，将旧路径模型迁移到新路径并保留未保存文本与 dirty 状态 */
+export function migrateFileModel(oldFullPath: string, newFullPath: string) {
+  const oldEntry = fileModels.get(oldFullPath);
+  if (!oldEntry) return;
+  const content = oldEntry.model.getValue();
+  const wasDirty = oldEntry.dirty;
+  disposeFileModel(oldFullPath);
+  ensureFileModel(newFullPath, content);
+  const nextEntry = fileModels.get(newFullPath);
+  if (nextEntry && wasDirty) {
+    nextEntry.savedVersion = -1;
+    updateDirty(nextEntry);
+  }
 }
 
 // ==================== LSP 定义跳转 ====================

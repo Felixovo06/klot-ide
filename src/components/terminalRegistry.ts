@@ -2,7 +2,7 @@
 import { Terminal, type ILink, type ILinkProvider } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
-import { ptyResize, ptyWrite } from '../lib/ipcClient';
+import { appOpenExternal, ptyResize, ptyWrite } from '../lib/ipcClient';
 import { ONYX_XTERM_DARK, ONYX_XTERM_LIGHT } from '../styles/onyx-generated-themes';
 import { MONO_FONT } from './monacoSetup';
 
@@ -22,6 +22,7 @@ export type TerminalLinkHandler = (path: string, line?: number, endLine?: number
 const entries = new Map<string, TerminalEntry>();
 let linkHandler: TerminalLinkHandler = () => {};
 let currentTheme: 'light' | 'dark' = 'light';
+let currentFontSize = 12.5;
 
 export function setTerminalLinkHandler(handler: TerminalLinkHandler) {
   linkHandler = handler;
@@ -70,7 +71,7 @@ export function createTerminalEntry(id: string): TerminalEntry {
   if (existing) return existing;
   const term = new Terminal({
     fontFamily: MONO_FONT,
-    fontSize: 12.5,
+    fontSize: currentFontSize,
     lineHeight: 1.55,
     minimumContrastRatio: 4.5,
     letterSpacing: 0,
@@ -86,7 +87,7 @@ export function createTerminalEntry(id: string): TerminalEntry {
   term.loadAddon(fit);
   term.loadAddon(
     new WebLinksAddon((_event, uri) => {
-      window.open(uri, '_blank', 'noopener');
+      void appOpenExternal(uri);
     }),
   );
   term.registerLinkProvider(createPathLinkProvider(term));
@@ -154,5 +155,13 @@ export function applyTerminalTheme(theme: 'light' | 'dark') {
   currentTheme = theme;
   for (const entry of entries.values()) {
     entry.term.options.theme = theme === 'dark' ? ONYX_XTERM_DARK : ONYX_XTERM_LIGHT;
+  }
+}
+
+export function applyTerminalFontSize(fontSize: number) {
+  currentFontSize = fontSize;
+  for (const entry of entries.values()) {
+    entry.term.options.fontSize = fontSize;
+    fitTerminal(entry.id);
   }
 }

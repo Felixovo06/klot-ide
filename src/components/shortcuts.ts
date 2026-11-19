@@ -98,8 +98,11 @@ export function formatShortcut(spec: string): string {
 }
 
 export const BUILTIN_SHORTCUTS: Array<{ keys: string; label: string }> = [
+  { keys: 'Cmd+O', label: '打开项目文件夹' },
+  { keys: 'Cmd+Shift+O', label: '在新窗口中打开项目' },
   { keys: 'Cmd+P', label: '快速跳转文件 / @ 符号 / > 命令' },
   { keys: 'Cmd+Shift+P', label: '命令面板' },
+  { keys: 'Cmd+G', label: '跳转到指定行 (:line)' },
   { keys: 'Cmd+1', label: '切换到 Code 模式' },
   { keys: 'Cmd+2', label: '切换到 Git 模式' },
   { keys: 'Cmd+B', label: '显示 / 隐藏左侧栏' },
@@ -107,6 +110,15 @@ export const BUILTIN_SHORTCUTS: Array<{ keys: string; label: string }> = [
   { keys: 'Cmd+`', label: '显示 / 隐藏运行控制台' },
   { keys: 'Cmd+Shift+F', label: '全局搜索' },
   { keys: 'Cmd+S', label: '保存当前文件' },
+  { keys: 'Cmd+Alt+S', label: '保存全部文件' },
+  { keys: 'Cmd+W', label: '关闭当前标签' },
+  { keys: 'Cmd+Shift+T', label: '恢复最近关闭标签' },
+  { keys: 'Cmd+Shift+[', label: '切换到上一个标签' },
+  { keys: 'Cmd+Shift+]', label: '切换到下一个标签' },
+  { keys: 'Alt+Z', label: '切换自动换行' },
+  { keys: 'Cmd+=', label: '放大编辑器字号' },
+  { keys: 'Cmd+-', label: '缩小编辑器字号' },
+  { keys: 'Cmd+0', label: '重置编辑器字号' },
   { keys: 'Cmd+L', label: '将选区作为上下文芯片发送到 CLI' },
   { keys: 'Cmd+,', label: '设置' },
   { keys: 'Cmd+Shift+X', label: '扩展' },
@@ -132,6 +144,8 @@ function saveCurrent() {
   void ws.saveFile();
 }
 
+registerBuiltin('Cmd+O', () => void useWorkspaceStore.getState().promptOpenWorkspace());
+registerBuiltin('Cmd+Shift+O', () => void useWorkspaceStore.getState().promptOpenWorkspaceInNewWindow());
 registerBuiltin('Cmd+P', () => {
   const ui = useUiStore.getState();
   if (ui.quickOpen.open) ui.closeQuickOpen();
@@ -145,6 +159,19 @@ registerBuiltin('Cmd+J', () => useUiStore.getState().toggleCli());
 registerBuiltin('Cmd+`', () => useUiStore.getState().toggleConsole());
 registerBuiltin('Cmd+Shift+F', () => useUiStore.getState().focusSearch());
 registerBuiltin('Cmd+S', saveCurrent);
+registerBuiltin('Cmd+Alt+S', () => void useWorkspaceStore.getState().saveAllFiles());
+registerBuiltin('Cmd+W', () => {
+  const ws = useWorkspaceStore.getState();
+  if (ws.activePath) ws.closeFile(ws.activePath);
+});
+registerBuiltin('Cmd+Shift+T', () => void useWorkspaceStore.getState().reopenClosedFile());
+registerBuiltin('Cmd+Shift+[', () => useWorkspaceStore.getState().cycleTab(-1));
+registerBuiltin('Cmd+Shift+]', () => useWorkspaceStore.getState().cycleTab(1));
+registerBuiltin('Cmd+G', () => useUiStore.getState().openQuickOpen(':'));
+registerBuiltin('Alt+Z', () => useUiStore.getState().toggleWordWrap());
+registerBuiltin('Cmd+=', () => useUiStore.getState().zoomEditor(1));
+registerBuiltin('Cmd+-', () => useUiStore.getState().zoomEditor(-1));
+registerBuiltin('Cmd+0', () => useUiStore.getState().zoomEditor(0));
 registerBuiltin('Cmd+,', () => useUiStore.getState().setModal('settings'));
 registerBuiltin('Cmd+Shift+X', () => useUiStore.getState().setModal('extensions'));
 

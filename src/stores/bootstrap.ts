@@ -19,7 +19,12 @@ import { usePluginStore } from './pluginStore';
 import { useRunStore } from './runStore';
 import { toast, useUiStore } from './uiStore';
 import { debounce, errorMessage, normalizeSlashes, trimTrailingSlash } from './utils';
-import { useWorkspaceStore } from './workspaceStore';
+import {
+  normalizeWorkspacePath,
+  readLastWorkspace,
+  repoNameOf,
+  useWorkspaceStore,
+} from './workspaceStore';
 
 let started = false;
 
@@ -50,6 +55,7 @@ export async function bootstrapApp() {
 
   setMonacoHooks({
     onDirtyChange: (fullPath, dirty) => useWorkspaceStore.getState().setDirtyByFull(fullPath, dirty),
+    onContentChange: (fullPath) => useWorkspaceStore.getState().scheduleAutoSave(fullPath),
     onOpenFile: (fullPath, line, column) => {
       useUiStore.getState().setMode('code');
       void useWorkspaceStore.getState().openFile(fullPath, { line, column });
@@ -71,11 +77,31 @@ export async function bootstrapApp() {
 
   const ws = useWorkspaceStore.getState();
   ws.setContext(ctx);
-  const root = ctx.defaultWorkspace;
-  setMonacoWorkspaceRoot(root);
+  const defaultRoot = normalizeWorkspacePath(ctx.defaultWorkspace);
+  let root = defaultRoot;
+  const last = !ctx.fromCliArg ? readLastWorkspace() : null;
+  if (last && last !== defaultRoot) {
+    ws.setActiveRoot(last);
+    setMonacoWorkspaceRoot(last);
+    const ok = await ws.refreshTree({ silent: true });
+    if (ok) {
+      root = last;
+    } else {
+      toast('warning', `上次打开的目录已不存在，已回退到 ${repoNameOf(defaultRoot) || defaultRoot}`);
+      root = defaultRoot;
+      ws.setActiveRoot(defaultRoot);
+      setMonacoWorkspaceRoot(defaultRoot);
+      if (defaultRoot) await ws.refreshTree();
+    }
+  } else {
+    if (root) {
+      ws.setActiveRoot(root);
+      setMonacoWorkspaceRoot(root);
+      await ws.refreshTree();
+    }
+  }
   if (!root) return;
-
-  await ws.refreshTree();
+  ws.recordRecent(root, { asLast: true });
   fsWatchWorkspace(root).catch(() => {});
 
   const git = useGitStore.getState();
@@ -99,9 +125,16 @@ export async function bootstrapApp() {
     }
   }
 
-  // 文件系统变更：任何变更都同步 Git 状态与分支；仅工作树（非 .git 内部）变更才刷新文件树并热重载无未保存修改的已打开文件
+  // 文件系统变更：动态对比当前激活工作区 root（支持 switchWorkspace 后持续联动）；
+  // 任何变更都同步 Git 状态与分支；仅工作树（非 .git 内部）变更才刷新文件树并热重载无未保存修改的已打开文件
   const pendingPaths = new Set<string>();
+  let pendingEventRoot = '';
   const flush = debounce(() => {
+    const currentRoot = trimTrailingSlash(normalizeSlashes(useWorkspaceStore.getState().root));
+    if (pendingEventRoot && pendingEventRoot !== currentRoot) {
+      pendingPaths.clear();
+      return;
+    }
     const paths = Array.from(pendingPaths);
     pendingPaths.clear();
     syncGitSilently();
@@ -118,9 +151,11 @@ export async function bootstrapApp() {
   });
   window.addEventListener('focus', () => syncGitSilently());
 
-  const normalizedRoot = trimTrailingSlash(normalizeSlashes(root));
   await onFsChanged((ev: FsChangedEvent) => {
-    if (ev.root && trimTrailingSlash(normalizeSlashes(ev.root)) !== normalizedRoot) return;
+    const activeRoot = trimTrailingSlash(normalizeSlashes(useWorkspaceStore.getState().root));
+    const eventRoot = ev.root ? trimTrailingSlash(normalizeSlashes(ev.root)) : activeRoot;
+    if (!activeRoot || eventRoot !== activeRoot) return;
+    pendingEventRoot = eventRoot;
     ev.paths.forEach((p) => pendingPaths.add(p));
     flush();
   });

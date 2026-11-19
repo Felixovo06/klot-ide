@@ -1,5 +1,6 @@
 // 插件 drawer_view 输出的原生渲染：Markdown 子集与表格
 import { Fragment, type ReactNode } from 'react';
+import { appOpenExternal } from '../lib/ipcClient';
 import type { DrawerTab } from '../stores/runStore';
 
 function renderInline(text: string, keyBase: string): ReactNode[] {
@@ -20,7 +21,17 @@ function renderInline(text: string, keyBase: string): ReactNode[] {
       const href = lm?.[2] ?? '';
       const safe = /^https?:\/\//.test(href) ? href : undefined;
       out.push(
-        <a key={key} href={safe} target="_blank" rel="noreferrer">
+        <a
+          key={key}
+          href={safe}
+          target="_blank"
+          rel="noreferrer"
+          onClick={(e) => {
+            if (!safe) return;
+            e.preventDefault();
+            void appOpenExternal(safe);
+          }}
+        >
           {lm?.[1] ?? tok}
         </a>,
       );

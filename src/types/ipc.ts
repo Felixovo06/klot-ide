@@ -15,6 +15,7 @@ export interface AppContextInfo {
   platform: string;
   availableClis: string[];
   onyxPluginsDir: string;
+  fromCliArg?: boolean;
 }
 
 // ==================== 文件系统 (fs_tree.rs) ====================
@@ -171,6 +172,13 @@ export interface GitCompareResult {
   commits: GitCommitInfo[];
   totalAdditions: number;
   totalDeletions: number;
+}
+
+export interface GitStashEntry {
+  index: number;
+  refName: string;
+  message: string;
+  relativeTime: string;
 }
 
 // ==================== 任务运行器 (task_runner.rs) ====================

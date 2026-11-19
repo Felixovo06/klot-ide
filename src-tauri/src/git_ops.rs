@@ -113,6 +113,15 @@ pub struct GitCompareResult {
     pub total_deletions: u32,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitStashEntry {
+    pub index: u32,
+    pub ref_name: String,
+    pub message: String,
+    pub relative_time: String,
+}
+
 async fn run_git_with_env(
     env: &AppEnv,
     root: &str,
@@ -155,6 +164,54 @@ async fn run_git_with_env(
 
 async fn run_git(env: &AppEnv, root: &str, args: &[&str]) -> Result<Vec<u8>, String> {
     run_git_with_env(env, root, args, &[]).await
+}
+
+async fn run_git_combined_output(
+    env: &AppEnv,
+    root: &str,
+    args: &[&str],
+    extra_env: &[(&str, &str)],
+) -> Result<String, String> {
+    let git_bin = env
+        .resolve_binary("git")
+        .unwrap_or_else(|| "git".into());
+
+    let mut cmd = Command::new(git_bin);
+    cmd.arg("-C")
+        .arg(root)
+        .arg("-c")
+        .arg("gc.auto=0")
+        .arg("--no-optional-locks")
+        .args(args)
+        .envs(&env.vars);
+
+    for (k, v) in extra_env {
+        cmd.env(k, v);
+    }
+
+    let output = cmd
+        .output()
+        .await
+        .map_err(|e| format!("执行 git 失败: {}", e))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    let combined = match (stdout.is_empty(), stderr.is_empty()) {
+        (false, false) => format!("{}\n{}", stdout, stderr),
+        (false, true) => stdout,
+        (true, false) => stderr,
+        (true, true) => String::new(),
+    };
+
+    if !output.status.success() {
+        return Err(if combined.is_empty() {
+            format!("git 命令失败: {:?}", args)
+        } else {
+            combined
+        });
+    }
+
+    Ok(combined)
 }
 
 async fn collect_numstat(env: &AppEnv, root: &str, cached: bool) -> HashMap<String, (u32, u32)> {
@@ -1349,6 +1406,188 @@ pub async fn git_diff_refs_file(
     .await
 }
 
+pub async fn git_push_core(env: &AppEnv, root: &str) -> Result<String, String> {
+    let remotes_bytes = run_git(env, root, &["remote"]).await?;
+    let remotes_text = String::from_utf8_lossy(&remotes_bytes);
+    let remotes: Vec<&str> = remotes_text
+        .lines()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect();
+    if remotes.is_empty() {
+        return Err("当前仓库尚未配置远端仓库 (remote)".to_string());
+    }
+
+    let has_upstream = run_git(
+        env,
+        root,
+        &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+    )
+    .await
+    .is_ok();
+
+    let summary = if has_upstream {
+        run_git_combined_output(env, root, &["push"], &[("GIT_TERMINAL_PROMPT", "0")]).await?
+    } else {
+        let target_remote = if remotes.contains(&"origin") {
+            "origin"
+        } else {
+            remotes[0]
+        };
+        run_git_combined_output(
+            env,
+            root,
+            &["push", "-u", target_remote, "HEAD"],
+            &[("GIT_TERMINAL_PROMPT", "0")],
+        )
+        .await?
+    };
+
+    Ok(if summary.is_empty() {
+        "推送完成".to_string()
+    } else {
+        summary
+    })
+}
+
+#[tauri::command]
+pub async fn git_push(env: State<'_, AppEnv>, root: String) -> Result<String, String> {
+    git_push_core(&env, &root).await
+}
+
+pub async fn git_pull_core(env: &AppEnv, root: &str) -> Result<String, String> {
+    let remotes_bytes = run_git(env, root, &["remote"]).await?;
+    let remotes_text = String::from_utf8_lossy(&remotes_bytes);
+    if remotes_text.trim().is_empty() {
+        return Err("当前仓库尚未配置远端仓库 (remote)".to_string());
+    }
+
+    match run_git_combined_output(
+        env,
+        root,
+        &["pull", "--ff-only"],
+        &[("GIT_TERMINAL_PROMPT", "0")],
+    )
+    .await
+    {
+        Ok(summary) => Ok(if summary.is_empty() {
+            "拉取完成".to_string()
+        } else {
+            summary
+        }),
+        Err(err) => {
+            if err.contains("Not possible to fast-forward") || err.contains("diverging") {
+                Err(format!(
+                    "当前分支与远端已分叉无法快进拉取，请先通过 Compare 或终端合并: {}",
+                    err
+                ))
+            } else {
+                Err(format!("拉取失败: {}", err))
+            }
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn git_pull(env: State<'_, AppEnv>, root: String) -> Result<String, String> {
+    git_pull_core(&env, &root).await
+}
+
+pub async fn git_stash_list_core(env: &AppEnv, root: &str) -> Result<Vec<GitStashEntry>, String> {
+    let Ok(bytes) = run_git(
+        env,
+        root,
+        &["stash", "list", "--format=%gd%x1f%gs%x1f%cr%x1e"],
+    )
+    .await
+    else {
+        return Ok(Vec::new());
+    };
+
+    let text = String::from_utf8_lossy(&bytes);
+    let mut entries = Vec::new();
+    for (fallback_idx, rec) in text
+        .split('\x1e')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .enumerate()
+    {
+        let fields: Vec<&str> = rec.split('\x1f').collect();
+        if fields.len() >= 3 {
+            let ref_name = fields[0].trim().to_string();
+            let parsed_idx = ref_name
+                .strip_prefix("stash@{")
+                .and_then(|s| s.strip_suffix('}'))
+                .and_then(|n| n.parse::<u32>().ok())
+                .unwrap_or(fallback_idx as u32);
+            entries.push(GitStashEntry {
+                index: parsed_idx,
+                ref_name,
+                message: fields[1].trim().to_string(),
+                relative_time: fields[2].trim().to_string(),
+            });
+        }
+    }
+    Ok(entries)
+}
+
+#[tauri::command]
+pub async fn git_stash_list(
+    env: State<'_, AppEnv>,
+    root: String,
+) -> Result<Vec<GitStashEntry>, String> {
+    git_stash_list_core(&env, &root).await
+}
+
+pub async fn git_stash_push_core(
+    env: &AppEnv,
+    root: &str,
+    message: Option<&str>,
+) -> Result<(), String> {
+    let has_head = run_git(env, root, &["rev-parse", "--verify", "HEAD"])
+        .await
+        .is_ok();
+    if !has_head {
+        return Err("当前仓库尚未有初始提交，无法使用 Stash".to_string());
+    }
+
+    let trimmed = message.map(str::trim).filter(|s| !s.is_empty());
+    if let Some(msg) = trimmed {
+        run_git(env, root, &["stash", "push", "-u", "-m", msg]).await?;
+    } else {
+        run_git(env, root, &["stash", "push", "-u"]).await?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn git_stash_push(
+    env: State<'_, AppEnv>,
+    root: String,
+    message: Option<String>,
+) -> Result<(), String> {
+    git_stash_push_core(&env, &root, message.as_deref()).await
+}
+
+pub async fn git_stash_pop_core(
+    env: &AppEnv,
+    root: &str,
+    index: Option<u32>,
+) -> Result<(), String> {
+    let target = format!("stash@{{{}}}", index.unwrap_or(0));
+    run_git(env, root, &["stash", "pop", &target]).await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn git_stash_pop(
+    env: State<'_, AppEnv>,
+    root: String,
+    index: Option<u32>,
+) -> Result<(), String> {
+    git_stash_pop_core(&env, &root, index).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1620,6 +1859,92 @@ mod tests {
                 .await
                 .unwrap();
         assert!(wt_diff.modified_text.contains("dirty = 1"));
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[tokio::test]
+    async fn test_git_stash_and_remote_push_pull() {
+        let tmp = std::env::temp_dir().join(format!(
+            "ke_git_push_stash_test_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let bare_dir = tmp.join("remote.git");
+        let work_a = tmp.join("work_a");
+        let work_b = tmp.join("work_b");
+        std::fs::create_dir_all(&bare_dir).unwrap();
+        std::fs::create_dir_all(&work_a).unwrap();
+
+        let env = AppEnv::init();
+        let bare_str = bare_dir.to_string_lossy().into_owned();
+        let a_str = work_a.to_string_lossy().into_owned();
+        let b_str = work_b.to_string_lossy().into_owned();
+
+        run_git(&env, &bare_str, &["init", "--bare", "-b", "main"])
+            .await
+            .unwrap();
+        run_git(&env, &a_str, &["init", "-b", "main"]).await.unwrap();
+        run_git(&env, &a_str, &["config", "user.email", "tester@klot.dev"])
+            .await
+            .unwrap();
+        run_git(&env, &a_str, &["config", "user.name", "Klot Tester"])
+            .await
+            .unwrap();
+        run_git(&env, &a_str, &["remote", "add", "origin", &bare_str])
+            .await
+            .unwrap();
+
+        // 0 commit 仓库使用 stash 应返回友好中文提示
+        let unborn_stash = git_stash_push_core(&env, &a_str, Some("wip")).await.unwrap_err();
+        assert!(unborn_stash.contains("尚未有初始提交"));
+
+        // 首次提交并执行无上游自动 -u push
+        std::fs::write(work_a.join("index.ts"), "export const init = 1;\n").unwrap();
+        git_stage_core(&env, &a_str, &[]).await.unwrap();
+        git_commit_core(&env, &a_str, "chore: init").await.unwrap();
+        let push_msg = git_push_core(&env, &a_str).await.unwrap();
+        assert!(!push_msg.is_empty());
+
+        // 克隆到 work_b，产生新提交并推送
+        let tmp_str = tmp.to_string_lossy().into_owned();
+        run_git(&env, &tmp_str, &["clone", &bare_str, &b_str])
+            .await
+            .unwrap();
+        run_git(&env, &b_str, &["config", "user.email", "peer@klot.dev"])
+            .await
+            .unwrap();
+        run_git(&env, &b_str, &["config", "user.name", "Peer"])
+            .await
+            .unwrap();
+        std::fs::write(work_b.join("peer.ts"), "export const peer = 2;\n").unwrap();
+        git_stage_core(&env, &b_str, &[]).await.unwrap();
+        git_commit_core(&env, &b_str, "feat: peer change").await.unwrap();
+        git_push_core(&env, &b_str).await.unwrap();
+
+        // work_a 拉取远端新提交
+        let pull_msg = git_pull_core(&env, &a_str).await.unwrap();
+        assert!(!pull_msg.is_empty());
+        assert!(work_a.join("peer.ts").is_file());
+
+        // 验证 Stash（含未跟踪文件 + 已修改文件）-> list -> pop
+        std::fs::write(work_a.join("index.ts"), "export const init = 99;\n").unwrap();
+        std::fs::write(work_a.join("scratch.ts"), "export const tmp = 1;\n").unwrap();
+        git_stash_push_core(&env, &a_str, Some("暂存草稿")).await.unwrap();
+        assert!(!work_a.join("scratch.ts").exists());
+
+        let stashes = git_stash_list_core(&env, &a_str).await.unwrap();
+        assert_eq!(stashes.len(), 1);
+        assert_eq!(stashes[0].index, 0);
+        assert_eq!(stashes[0].ref_name, "stash@{0}");
+        assert!(stashes[0].message.contains("暂存草稿"));
+
+        git_stash_pop_core(&env, &a_str, Some(0)).await.unwrap();
+        assert!(work_a.join("scratch.ts").is_file());
+        let stashes_after = git_stash_list_core(&env, &a_str).await.unwrap();
+        assert!(stashes_after.is_empty());
 
         let _ = std::fs::remove_dir_all(&tmp);
     }

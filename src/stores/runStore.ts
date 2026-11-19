@@ -1,8 +1,8 @@
 import { create } from 'zustand';
-import { taskDiscover, taskRestart, taskRun, taskStop } from '../lib/ipcClient';
+import { taskDiscover, taskRestart, taskRun, taskRunCustom, taskStop } from '../lib/ipcClient';
 import type { TaskDefinition, TaskOutputEvent } from '../types/ipc';
 import { toast, useUiStore } from './uiStore';
-import { errorMessage, stripAnsi } from './utils';
+import { errorMessage, normalizeSlashes, stripAnsi, trimTrailingSlash, uid } from './utils';
 import { useWorkspaceStore } from './workspaceStore';
 
 export type LogTone = 'out' | 'err' | 'info' | 'error';
@@ -46,6 +46,8 @@ interface RunState {
 
   discover: () => Promise<void>;
   selectTask: (id: string) => void;
+  addCustomTask: (command: string, name?: string) => Promise<void>;
+  removeCustomTask: (id: string) => void;
   start: () => Promise<void>;
   stop: () => Promise<void>;
   restart: () => Promise<void>;
@@ -54,12 +56,59 @@ interface RunState {
   upsertDrawerTab: (tab: Omit<DrawerTab, 'updatedAt'>) => void;
   closeDrawerTab: (id: string) => void;
   setActiveDrawerTab: (id: string) => void;
+  resetForWorkspace: () => Promise<void>;
 }
 
 const MAX_LOG_LINES = 4000;
 const URL_PATTERN = /https?:\/\/[^\s'"<>)]+/;
 let logId = 0;
 let runToken = 0;
+
+interface StoredCustomTask {
+  id: string;
+  name: string;
+  command: string;
+}
+
+function customTasksKey(root: string): string {
+  return `ke.customTasks:${trimTrailingSlash(normalizeSlashes(root))}`;
+}
+
+function readCustomTasks(root: string): TaskDefinition[] {
+  if (!root) return [];
+  try {
+    const raw = localStorage.getItem(customTasksKey(root));
+    if (!raw) return [];
+    const list = JSON.parse(raw);
+    if (!Array.isArray(list)) return [];
+    return list
+      .filter(
+        (x): x is StoredCustomTask =>
+          !!x && typeof x.id === 'string' && typeof x.name === 'string' && typeof x.command === 'string',
+      )
+      .map((x) => ({
+        id: x.id,
+        name: x.name,
+        command: x.command,
+        cwd: root,
+        source: 'custom' as const,
+      }));
+  } catch {
+    return [];
+  }
+}
+
+function writeCustomTasks(root: string, tasks: TaskDefinition[]) {
+  if (!root) return;
+  const custom: StoredCustomTask[] = tasks
+    .filter((t) => t.source === 'custom')
+    .map((t) => ({ id: t.id, name: t.name, command: t.command }));
+  try {
+    localStorage.setItem(customTasksKey(root), JSON.stringify(custom));
+  } catch {
+    // 忽略存储不可用
+  }
+}
 
 function makeLines(text: string, tone: LogTone): LogLine[] {
   const now = Date.now();
@@ -136,8 +185,10 @@ export const useRunStore = create<RunState>()((set, get) => {
     discover: async () => {
       const root = useWorkspaceStore.getState().root;
       if (!root) return;
+      const custom = readCustomTasks(root);
       try {
-        const tasks = await taskDiscover(root);
+        const discovered = await taskDiscover(root);
+        const tasks = [...discovered, ...custom];
         set((s) => ({
           tasks,
           selectedTaskId:
@@ -146,11 +197,46 @@ export const useRunStore = create<RunState>()((set, get) => {
               : (tasks.find((t) => /dev/.test(t.name)) ?? tasks[0])?.id ?? null,
         }));
       } catch {
-        set({ tasks: [] });
+        set((s) => ({
+          tasks: custom,
+          selectedTaskId:
+            s.selectedTaskId && custom.some((t) => t.id === s.selectedTaskId)
+              ? s.selectedTaskId
+              : custom[0]?.id ?? null,
+        }));
       }
     },
 
     selectTask: (id) => set({ selectedTaskId: id }),
+
+    addCustomTask: async (rawCommand, rawName) => {
+      const command = rawCommand.trim();
+      if (!command) return;
+      const root = useWorkspaceStore.getState().root;
+      if (!root) return;
+      const name = rawName?.trim() || command.split(/\s+/)[0] || 'custom';
+      const task: TaskDefinition = {
+        id: uid('custom'),
+        name,
+        command,
+        cwd: root,
+        source: 'custom',
+      };
+      const nextTasks = [...get().tasks, task];
+      writeCustomTasks(root, nextTasks);
+      set({ tasks: nextTasks, selectedTaskId: task.id });
+      await get().start();
+    },
+
+    removeCustomTask: (id) => {
+      const root = useWorkspaceStore.getState().root;
+      const nextTasks = get().tasks.filter((t) => !(t.id === id && t.source === 'custom'));
+      writeCustomTasks(root, nextTasks);
+      set((s) => ({
+        tasks: nextTasks,
+        selectedTaskId: s.selectedTaskId === id ? (nextTasks[0]?.id ?? null) : s.selectedTaskId,
+      }));
+    },
 
     start: async () => {
       const task = currentTask();
@@ -180,7 +266,11 @@ export const useRunStore = create<RunState>()((set, get) => {
       useUiStore.getState().setConsoleVisible(true);
       get().appendLog(`$ ${task.command}`, 'info');
       try {
-        const handle = await taskRun(root, task.id, task.command, makeHandler(token));
+        const handler = makeHandler(token);
+        const handle =
+          task.source === 'custom'
+            ? await taskRunCustom(root, task.name, task.command, handler)
+            : await taskRun(root, task.id, task.command, handler);
         if (token !== runToken) return;
         const run = get().run;
         if (run && run.status === 'starting') {
@@ -281,6 +371,26 @@ export const useRunStore = create<RunState>()((set, get) => {
       })),
 
     setActiveDrawerTab: (activeDrawerTab) => set({ activeDrawerTab }),
+
+    resetForWorkspace: async () => {
+      const run = get().run;
+      runToken += 1;
+      if (run && run.runId && isRunActive(run)) {
+        try {
+          await taskStop(run.runId);
+        } catch {
+          // 忽略旧工作区任务停止异常
+        }
+      }
+      set({
+        tasks: [],
+        selectedTaskId: null,
+        run: null,
+        logs: [],
+        drawerTabs: [],
+        activeDrawerTab: 'run',
+      });
+    },
   };
 });
 

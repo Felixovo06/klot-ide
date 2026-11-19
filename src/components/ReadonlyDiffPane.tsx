@@ -28,13 +28,18 @@ export function ReadonlyDiffPane({
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneDiffEditor | null>(null);
+  const prefs = useUiStore((s) => s.prefs);
   const [layout, setLayout] = useState<'inline' | 'split'>('split');
 
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
+    const initPrefs = useUiStore.getState().prefs;
     const editor = monaco.editor.createDiffEditor(host, {
       ...EDITOR_BASE_OPTIONS,
+      fontSize: initPrefs.editorFontSize,
+      lineHeight: Math.round(initPrefs.editorFontSize * 1.6),
+      wordWrap: initPrefs.wordWrap,
       theme: useUiStore.getState().theme === 'dark' ? 'onyx-dark' : 'onyx-light',
       renderSideBySide: true,
       useInlineViewWhenSpaceIsLimited: false,
@@ -59,6 +64,19 @@ export function ReadonlyDiffPane({
   useEffect(() => {
     editorRef.current?.updateOptions({ renderSideBySide: layout === 'split' });
   }, [layout]);
+
+  useEffect(() => {
+    const ed = editorRef.current;
+    if (!ed) return;
+    const opts = {
+      fontSize: prefs.editorFontSize,
+      lineHeight: Math.round(prefs.editorFontSize * 1.6),
+      wordWrap: prefs.wordWrap,
+      tabSize: prefs.tabSize,
+    };
+    ed.getOriginalEditor().updateOptions(opts);
+    ed.getModifiedEditor().updateOptions(opts);
+  }, [prefs.editorFontSize, prefs.wordWrap, prefs.tabSize]);
 
   const hasDiff = !!diff && !!file && diff.path === file.path;
   const showEditor = hasDiff && !diff.isBinary;

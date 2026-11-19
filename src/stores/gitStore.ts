@@ -13,7 +13,12 @@ import {
   gitGraph,
   gitInit,
   gitLog,
+  gitPull,
+  gitPush,
   gitStage,
+  gitStashList,
+  gitStashPop,
+  gitStashPush,
   gitStatus,
   gitUnstage,
 } from '../lib/ipcClient';
@@ -25,6 +30,7 @@ import type {
   GitDiffResult,
   GitFileChange,
   GitGraphNode,
+  GitStashEntry,
   GitStatusResult,
 } from '../types/ipc';
 import { toast } from './uiStore';
@@ -55,6 +61,8 @@ interface GitState {
   // 三视图工作台
   gitTab: GitTab;
   fetching: boolean;
+  remoteBusy: 'push' | 'pull' | 'stash' | null;
+  stashes: GitStashEntry[];
 
   // Graph（Git 树）
   graphNodes: GitGraphNode[];
@@ -93,6 +101,10 @@ interface GitState {
 
   setGitTab: (tab: GitTab) => void;
   fetchRemotes: () => Promise<void>;
+  push: () => Promise<void>;
+  pull: () => Promise<void>;
+  stashPush: (message?: string) => Promise<boolean>;
+  stashPop: (index?: number) => Promise<boolean>;
 
   loadGraph: (opts?: { silent?: boolean }) => Promise<void>;
   setGraphAllBranches: (all: boolean) => void;
@@ -106,6 +118,7 @@ interface GitState {
   setCompareThreeDot: (threeDot: boolean) => void;
   loadCompare: (opts?: { silent?: boolean }) => Promise<void>;
   selectCompareFile: (file: GitFileChange | null) => Promise<void>;
+  resetForWorkspace: () => void;
 }
 
 function rootOf(): string {
@@ -157,6 +170,8 @@ export const useGitStore = create<GitState>()((set, get) => ({
 
   gitTab: 'changes',
   fetching: false,
+  remoteBusy: null,
+  stashes: [],
 
   graphNodes: [],
   graphAllBranches: true,
@@ -203,6 +218,84 @@ export const useGitStore = create<GitState>()((set, get) => ({
       const { gitTab, graphLoaded, compareResult } = get();
       if (gitTab === 'graph' || graphLoaded) await get().loadGraph({ silent: true });
       if (gitTab === 'compare' || compareResult) await get().loadCompare({ silent: true });
+    }
+  },
+
+  push: async () => {
+    const root = rootOf();
+    if (!root || get().remoteBusy) return;
+    set({ remoteBusy: 'push' });
+    try {
+      const msg = await gitPush(root);
+      toast('success', msg || '已推送到远端');
+    } catch (e) {
+      toast('error', `推送失败：${errorMessage(e)}`);
+    } finally {
+      set({ remoteBusy: null });
+      await Promise.all([get().refresh({ silent: true }), get().refreshBranches()]);
+      if (get().graphLoaded) void get().loadGraph({ silent: true });
+    }
+  },
+
+  pull: async () => {
+    const root = rootOf();
+    if (!root || get().remoteBusy) return;
+    set({ remoteBusy: 'pull' });
+    try {
+      const msg = await gitPull(root);
+      toast('success', msg || '已从远端拉取最新提交');
+      await Promise.all([
+        useWorkspaceStore.getState().refreshTree({ silent: true }),
+        useWorkspaceStore.getState().reloadFromDisk(),
+      ]);
+    } catch (e) {
+      toast('error', `拉取失败：${errorMessage(e)}`);
+    } finally {
+      set({ remoteBusy: null });
+      await Promise.all([get().refresh({ silent: true }), get().refreshBranches()]);
+      if (get().graphLoaded) void get().loadGraph({ silent: true });
+    }
+  },
+
+  stashPush: async (message) => {
+    const root = rootOf();
+    if (!root || get().remoteBusy) return false;
+    set({ remoteBusy: 'stash' });
+    try {
+      await gitStashPush(root, message?.trim() || null);
+      toast('success', '已将当前改动暂存到 Stash');
+      await Promise.all([
+        useWorkspaceStore.getState().refreshTree({ silent: true }),
+        useWorkspaceStore.getState().reloadFromDisk(),
+      ]);
+      return true;
+    } catch (e) {
+      toast('error', `Stash 失败：${errorMessage(e)}`);
+      return false;
+    } finally {
+      set({ remoteBusy: null });
+      await get().refresh({ silent: true });
+    }
+  },
+
+  stashPop: async (index) => {
+    const root = rootOf();
+    if (!root || get().remoteBusy) return false;
+    set({ remoteBusy: 'stash' });
+    try {
+      await gitStashPop(root, index ?? 0);
+      toast('success', '已恢复 Stash 改动');
+      await Promise.all([
+        useWorkspaceStore.getState().refreshTree({ silent: true }),
+        useWorkspaceStore.getState().reloadFromDisk(),
+      ]);
+      return true;
+    } catch (e) {
+      toast('error', `恢复 Stash 失败：${errorMessage(e)}`);
+      return false;
+    } finally {
+      set({ remoteBusy: null });
+      await get().refresh({ silent: true });
     }
   },
 
@@ -367,11 +460,17 @@ export const useGitStore = create<GitState>()((set, get) => ({
     if (!root) return;
     const prevTop = get().log[0]?.hash ?? '';
     try {
-      const [status, log] = await Promise.all([
+      const [status, log, stashes] = await Promise.all([
         gitStatus(root),
         gitLog(root, 20).catch(() => [] as GitCommitInfo[]),
+        gitStashList(root).catch(() => [] as GitStashEntry[]),
       ]);
-      set((s) => ({ status, log: status.isRepo ? log : [], statusVersion: s.statusVersion + 1 }));
+      set((s) => ({
+        status,
+        log: status.isRepo ? log : [],
+        stashes: status.isRepo ? stashes : [],
+        statusVersion: s.statusVersion + 1,
+      }));
     } catch {
       set((s) => ({
         status: {
@@ -384,6 +483,7 @@ export const useGitStore = create<GitState>()((set, get) => ({
           totalChanges: 0,
         },
         log: [],
+        stashes: [],
         statusVersion: s.statusVersion + 1,
       }));
     }
@@ -543,6 +643,47 @@ export const useGitStore = create<GitState>()((set, get) => ({
       toast('error', `切换分支失败：${errorMessage(e)}`);
       return false;
     }
+  },
+
+  resetForWorkspace: () => {
+    diffToken += 1;
+    graphToken += 1;
+    detailToken += 1;
+    commitDiffToken += 1;
+    compareToken += 1;
+    compareDiffToken += 1;
+    set((s) => ({
+      status: null,
+      log: [],
+      branches: [],
+      selected: null,
+      diff: null,
+      diffLoading: false,
+      busy: false,
+      statusVersion: s.statusVersion + 1,
+      initializing: false,
+      gitTab: 'changes',
+      fetching: false,
+      remoteBusy: null,
+      stashes: [],
+      graphNodes: [],
+      graphLoading: false,
+      graphLoaded: false,
+      selectedCommitHash: null,
+      commitDetail: null,
+      commitDetailLoading: false,
+      commitFileSelected: null,
+      commitDiff: null,
+      commitDiffLoading: false,
+      compareBase: '',
+      compareHead: '',
+      compareResult: null,
+      compareLoading: false,
+      compareError: null,
+      compareFileSelected: null,
+      compareDiff: null,
+      compareDiffLoading: false,
+    }));
   },
 }));
 

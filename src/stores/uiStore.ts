@@ -7,6 +7,15 @@ export type LeftTab = 'files' | 'search';
 export type ModalKind = 'extensions' | 'settings' | 'shortcuts' | null;
 export type ToastTone = 'info' | 'success' | 'warning' | 'error';
 
+export interface EditorPrefs {
+  editorFontSize: number; // 12..18, default 13
+  wordWrap: 'off' | 'on'; // default 'off'
+  tabSize: 2 | 4; // default 2
+  autoSave: boolean; // default false
+  trimTrailingWhitespace: boolean; // default false
+  terminalFontSize: number; // 11..16, default 12.5
+}
+
 export interface ToastItem {
   id: string;
   tone: ToastTone;
@@ -28,7 +37,11 @@ interface UiState {
   leftWidth: number;
   cliWidth: number;
   consoleHeight: number;
+  prefs: EditorPrefs;
 
+  setPref: <K extends keyof EditorPrefs>(key: K, value: EditorPrefs[K]) => void;
+  toggleWordWrap: () => void;
+  zoomEditor: (delta: -1 | 1 | 0) => void;
   setLeftWidth: (v: number) => void;
   setCliWidth: (v: number) => void;
   setConsoleHeight: (v: number) => void;
@@ -124,6 +137,56 @@ function persistLayout(snapshot: LayoutSnapshot) {
 
 const initialLayout = readInitialLayout();
 
+const PREFS_KEY = 'ke.prefs';
+
+export const DEFAULT_PREFS: EditorPrefs = {
+  editorFontSize: 13,
+  wordWrap: 'off',
+  tabSize: 2,
+  autoSave: false,
+  trimTrailingWhitespace: false,
+  terminalFontSize: 12.5,
+};
+
+function clampEditorFontSize(v: unknown): number {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return DEFAULT_PREFS.editorFontSize;
+  return Math.round(Math.min(18, Math.max(12, v)));
+}
+
+function clampTerminalFontSize(v: unknown): number {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return DEFAULT_PREFS.terminalFontSize;
+  return Math.round(Math.min(16, Math.max(11, v)) * 2) / 2;
+}
+
+function readInitialPrefs(): EditorPrefs {
+  const out: EditorPrefs = { ...DEFAULT_PREFS };
+  try {
+    const raw = localStorage.getItem(PREFS_KEY);
+    if (raw) {
+      const p = JSON.parse(raw) as Partial<Record<keyof EditorPrefs, unknown>>;
+      out.editorFontSize = clampEditorFontSize(p.editorFontSize);
+      out.wordWrap = p.wordWrap === 'on' ? 'on' : 'off';
+      out.tabSize = p.tabSize === 4 ? 4 : 2;
+      out.autoSave = Boolean(p.autoSave);
+      out.trimTrailingWhitespace = Boolean(p.trimTrailingWhitespace);
+      out.terminalFontSize = clampTerminalFontSize(p.terminalFontSize);
+    }
+  } catch {
+    // 忽略存储不可用或数据损坏
+  }
+  return out;
+}
+
+function persistPrefs(prefs: EditorPrefs) {
+  try {
+    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+  } catch {
+    // 忽略存储不可用
+  }
+}
+
+const initialPrefs = readInitialPrefs();
+
 const toastTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 export const useUiStore = create<UiState>()((set, get) => {
@@ -150,6 +213,26 @@ export const useUiStore = create<UiState>()((set, get) => {
     leftWidth: initialLayout.leftWidth,
     cliWidth: initialLayout.cliWidth,
     consoleHeight: initialLayout.consoleHeight,
+    prefs: initialPrefs,
+
+    setPref: (key, value) => {
+      const cur = get().prefs;
+      let normalized = value;
+      if (key === 'editorFontSize') normalized = clampEditorFontSize(value) as EditorPrefs[typeof key];
+      else if (key === 'terminalFontSize') normalized = clampTerminalFontSize(value) as EditorPrefs[typeof key];
+      if (cur[key] === normalized) return;
+      const next = { ...cur, [key]: normalized };
+      persistPrefs(next);
+      set({ prefs: next });
+    },
+    toggleWordWrap: () => {
+      const next = get().prefs.wordWrap === 'on' ? 'off' : 'on';
+      get().setPref('wordWrap', next);
+    },
+    zoomEditor: (delta) => {
+      const size = delta === 0 ? DEFAULT_PREFS.editorFontSize : get().prefs.editorFontSize + delta;
+      get().setPref('editorFontSize', size);
+    },
 
     setLeftWidth: (v) => setLayout('leftWidth', v),
     setCliWidth: (v) => setLayout('cliWidth', v),

@@ -24,6 +24,7 @@ export function symbolsForModel(model: monaco.editor.ITextModel): SymbolEntry[] 
 }
 
 function EmptyState() {
+  const promptOpenWorkspace = useWorkspaceStore((s) => s.promptOpenWorkspace);
   const rows: Array<[string, string]> = [
     ['Go to File', 'Cmd+P'],
     ['Search in Files', 'Cmd+Shift+F'],
@@ -35,6 +36,14 @@ function EmptyState() {
     <div className="onyx-editor-empty">
       <div className="onyx-editor-empty-title">Klot IDE</div>
       <div className="onyx-editor-empty-list">
+        <button
+          type="button"
+          className="onyx-editor-empty-row is-action"
+          onClick={() => void promptOpenWorkspace()}
+        >
+          <span>Open Folder</span>
+          <Kbd>{formatShortcut('Cmd+O')}</Kbd>
+        </button>
         {rows.map(([label, keys]) => (
           <div key={label} className="onyx-editor-empty-row">
             <span>{label}</span>
@@ -56,13 +65,19 @@ export function CodeEditor() {
   const root = useWorkspaceStore((s) => s.root);
   const reveal = useWorkspaceStore((s) => s.reveal);
   const statusVersion = useGitStore((s) => s.statusVersion);
+  const prefs = useUiStore((s) => s.prefs);
 
   // 创建编辑器实例
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
+    const initPrefs = useUiStore.getState().prefs;
     const editor = monaco.editor.create(host, {
       ...EDITOR_BASE_OPTIONS,
+      fontSize: initPrefs.editorFontSize,
+      lineHeight: Math.round(initPrefs.editorFontSize * 1.6),
+      wordWrap: initPrefs.wordWrap,
+      tabSize: initPrefs.tabSize,
       model: null,
       theme: useUiStore.getState().theme === 'dark' ? 'onyx-dark' : 'onyx-light',
     });
@@ -121,6 +136,21 @@ export function CodeEditor() {
       decorationsRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    editorRef.current?.updateOptions({
+      fontSize: prefs.editorFontSize,
+      lineHeight: Math.round(prefs.editorFontSize * 1.6),
+      wordWrap: prefs.wordWrap,
+      tabSize: prefs.tabSize,
+    });
+  }, [prefs.editorFontSize, prefs.wordWrap, prefs.tabSize]);
+
+  // 切换工作区时清空视图状态缓存，避免不同项目间同名相对路径复用旧滚动位置
+  useEffect(() => {
+    viewStates.current.clear();
+    currentPathRef.current = null;
+  }, [root]);
 
   // 切换激活文件模型，并保存/恢复视图状态
   useEffect(() => {

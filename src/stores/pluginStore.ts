@@ -12,7 +12,7 @@ import { fileSavedEvent } from './events';
 import { changedFilePaths, statusSignature, useGitStore } from './gitStore';
 import { useRunStore } from './runStore';
 import { toast, useUiStore } from './uiStore';
-import { debounce, errorMessage } from './utils';
+import { debounce, errorMessage, normalizeSlashes, trimTrailingSlash } from './utils';
 import { useWorkspaceStore } from './workspaceStore';
 
 interface PluginState {
@@ -28,6 +28,7 @@ interface PluginState {
 
 const intervalTimers = new Map<string, ReturnType<typeof setInterval>>();
 let initializedRoot = '';
+let listenersBound = false;
 
 export function buildPluginContext(): PluginExecutionContext {
   const ws = useWorkspaceStore.getState();
@@ -114,12 +115,20 @@ export const usePluginStore = create<PluginState>()((set, get) => {
     running: {},
 
     init: async (root) => {
-      if (initializedRoot === root) return;
-      initializedRoot = root;
+      const normalized = trimTrailingSlash(normalizeSlashes(root));
+      if (!normalized || initializedRoot === normalized) return;
+      clearTimers();
+      initializedRoot = normalized;
+      set({ plugins: [], statuses: {}, running: {} });
       await get().reload();
       pluginWatch(root).catch(() => {});
+
+      if (listenersBound) return;
+      listenersBound = true;
+
       await onPluginsUpdated((payload) => {
-        if (payload.root && payload.root !== useWorkspaceStore.getState().root) return;
+        const activeRoot = trimTrailingSlash(normalizeSlashes(useWorkspaceStore.getState().root));
+        if (payload.root && trimTrailingSlash(normalizeSlashes(payload.root)) !== activeRoot) return;
         get().setPlugins(payload.plugins);
       });
 
@@ -143,8 +152,11 @@ export const usePluginStore = create<PluginState>()((set, get) => {
     reload: async () => {
       const root = useWorkspaceStore.getState().root;
       if (!root) return;
+      const normalized = trimTrailingSlash(normalizeSlashes(root));
       try {
-        get().setPlugins(await pluginList(root));
+        const list = await pluginList(root);
+        const current = trimTrailingSlash(normalizeSlashes(useWorkspaceStore.getState().root));
+        if (current === normalized) get().setPlugins(list);
       } catch (e) {
         toast('error', `加载插件失败：${errorMessage(e)}`);
       }

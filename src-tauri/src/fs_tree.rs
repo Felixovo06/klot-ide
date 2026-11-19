@@ -416,6 +416,34 @@ pub fn fs_watch_workspace(
     Ok(())
 }
 
+#[tauri::command]
+pub async fn fs_reveal_in_finder(path: String) -> Result<(), String> {
+    let target = PathBuf::from(&path);
+    if !target.exists() {
+        return Err(format!("目标路径不存在: {}", path));
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let status = tokio::process::Command::new("/usr/bin/open")
+            .arg("-R")
+            .arg(&target)
+            .status()
+            .await
+            .map_err(|e| format!("打开 Finder 失败: {}", e))?;
+        if !status.success() {
+            return Err("无法在 Finder 中显示该路径".to_string());
+        }
+        Ok(())
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = target;
+        Err("当前操作系统暂不支持 Finder 定位".to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -151,3 +151,14 @@ export function errorMessage(e: unknown): string {
 export function chipRef(path: string, startLine: number, endLine: number): string {
   return startLine === endLine ? `@${path}#L${startLine}` : `@${path}#L${startLine}-${endLine}`;
 }
+
+/** 将用户主目录前缀缩写为 ~/，供项目列表副标题紧凑展示 */
+export function abbreviateHome(path: string, homeDir?: string): string {
+  const norm = trimTrailingSlash(normalizeSlashes(path));
+  const home = homeDir ? trimTrailingSlash(normalizeSlashes(homeDir)) : '';
+  if (home && home !== '/') {
+    if (norm === home) return '~';
+    if (norm.startsWith(`${home}/`)) return `~/${norm.slice(home.length + 1)}`;
+  }
+  return norm.replace(/^\/Users\/[^/]+(?=\/|$)/, '~');
+}

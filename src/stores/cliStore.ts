@@ -81,6 +81,7 @@ export interface CliSession {
   id: string;
   cmd: string;
   title: string;
+  cwd?: string;
   status: CliSessionStatus;
   pid: number | null;
 }
@@ -99,7 +100,7 @@ interface CliState {
   availableClis: string[];
 
   initSessions: (clis: string[]) => void;
-  addSession: (cmd: string) => string;
+  addSession: (cmd: string, opts?: { cwd?: string }) => string;
   activate: (id: string) => void;
   closeSession: (id: string) => void;
   addChip: (chip: Omit<ContextChip, 'id'>) => void;
@@ -107,6 +108,7 @@ interface CliState {
   clearChips: () => void;
   submit: (draft: string) => Promise<boolean>;
   sendPrompt: (prompt: string) => Promise<boolean>;
+  resetForWorkspace: () => void;
 }
 
 const spawnPromises = new Map<string, Promise<boolean>>();
@@ -132,7 +134,7 @@ export const useCliStore = create<CliState>()((set, get) => {
         id,
         cmd: session.cmd,
         args: [],
-        cwd: ws.root,
+        cwd: session.cwd || ws.root,
         cols: entry.term.cols,
         rows: entry.term.rows,
         activeFile: ws.activePath,
@@ -193,12 +195,13 @@ export const useCliStore = create<CliState>()((set, get) => {
       set({ availableClis: clis });
     },
 
-    addSession: (cmd) => {
+    addSession: (cmd, opts) => {
       const sameCount = get().sessions.filter((x) => x.cmd === cmd).length;
       const session: CliSession = {
         id: uid(`pty-${cmd}`),
         cmd,
         title: sameCount > 0 ? `${cmd} ${sameCount + 1}` : cmd,
+        cwd: opts?.cwd,
         status: 'idle',
         pid: null,
       };
@@ -256,6 +259,17 @@ export const useCliStore = create<CliState>()((set, get) => {
     sendPrompt: async (prompt) => {
       useUiStore.getState().setCliVisible(true);
       return writeToActive(prompt);
+    },
+
+    resetForWorkspace: () => {
+      silentGitSync.cancel();
+      for (const s of get().sessions) {
+        const entry = getTerminalEntry(s.id);
+        if (entry?.spawned) ptyKill(s.id).catch(() => {});
+        spawnPromises.delete(s.id);
+        disposeTerminal(s.id);
+      }
+      set({ sessions: [], activeId: null, chips: [] });
     },
   };
 });
