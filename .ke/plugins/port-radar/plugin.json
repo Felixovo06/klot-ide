@@ -1,0 +1,12 @@
+{
+  "id": "port-radar",
+  "name": "本地端口雷达",
+  "version": "0.1.0",
+  "description": "检测本地常用开发端口监听状态并在顶部状态栏展示微胶囊",
+  "slot": "topbar_status",
+  "entry": "run.mjs",
+  "runtime": "node",
+  "triggers": {
+    "intervalMs": 5000
+  }
+}

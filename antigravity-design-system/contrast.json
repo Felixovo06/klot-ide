@@ -1,0 +1,96 @@
+{
+  "light": {
+    "content/primary on surface/canvas": {
+      "fg": "#0A0A0C",
+      "bg": "#FFFFFF",
+      "ratio": 19.78
+    },
+    "content/primary on surface/card": {
+      "fg": "#0A0A0C",
+      "bg": "#FFFFFF",
+      "ratio": 19.78
+    },
+    "content/secondary on surface/canvas": {
+      "fg": "#3F3F46",
+      "bg": "#FFFFFF",
+      "ratio": 10.44
+    },
+    "content/tertiary on surface/canvas": {
+      "fg": "#71717A",
+      "bg": "#FFFFFF",
+      "ratio": 4.83
+    },
+    "content/placeholder on surface/canvas": {
+      "fg": "#8E8E95",
+      "bg": "#FFFFFF",
+      "ratio": 3.25
+    },
+    "accent/default on surface/canvas": {
+      "fg": "#2F75C3",
+      "bg": "#FFFFFF",
+      "ratio": 4.72
+    },
+    "accent/on-accent on accent/default": {
+      "fg": "#FFFFFF",
+      "bg": "#2F75C3",
+      "ratio": 4.72
+    },
+    "content/primary on surface/sidebar": {
+      "fg": "#0A0A0C",
+      "bg": "#FAFAFA",
+      "ratio": 18.95
+    },
+    "content/primary on surface/shell": {
+      "fg": "#0A0A0C",
+      "bg": "#FAFAFA",
+      "ratio": 18.95
+    }
+  },
+  "dark": {
+    "content/primary on surface/canvas": {
+      "fg": "#FFFFFF",
+      "bg": "#070708",
+      "ratio": 20.14
+    },
+    "content/primary on surface/card": {
+      "fg": "#FFFFFF",
+      "bg": "#131317",
+      "ratio": 18.53
+    },
+    "content/secondary on surface/canvas": {
+      "fg": "#BCBDC6",
+      "bg": "#070708",
+      "ratio": 10.77
+    },
+    "content/tertiary on surface/canvas": {
+      "fg": "#87888F",
+      "bg": "#070708",
+      "ratio": 5.7
+    },
+    "content/placeholder on surface/canvas": {
+      "fg": "#636470",
+      "bg": "#070708",
+      "ratio": 3.44
+    },
+    "accent/default on surface/canvas": {
+      "fg": "#2F71E3",
+      "bg": "#070708",
+      "ratio": 4.4
+    },
+    "accent/on-accent on accent/default": {
+      "fg": "#FFFFFF",
+      "bg": "#2F71E3",
+      "ratio": 4.57
+    },
+    "content/primary on surface/sidebar": {
+      "fg": "#FFFFFF",
+      "bg": "#111114",
+      "ratio": 18.85
+    },
+    "content/primary on surface/shell": {
+      "fg": "#FFFFFF",
+      "bg": "#111114",
+      "ratio": 18.85
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "id": "code-hotspot",
+  "name": "代码热点与大文件分析",
+  "version": "0.1.0",
+  "description": "统计工作区近 30 次 commit 的高频修改文件与当前最大源码文件体积，在底部抽屉展示分析报告",
+  "slot": "drawer_view",
+  "entry": "run.mjs",
+  "runtime": "node",
+  "triggers": {
+    "menu": "gear",
+    "palette": true
+  }
+}

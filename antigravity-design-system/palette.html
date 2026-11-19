@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<title>Antigravity · Design Tokens</title>
+<style>
+  :root { --bg:#111114; --fg:#ffffff; --muted:#87888f; --line:rgba(255,255,255,.08); }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+    font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    font-size:14px; line-height:20px; padding:40px 32px 80px; }
+  header { max-width:1080px; margin:0 auto 40px; }
+  h1 { font-size:24px; line-height:32px; letter-spacing:-.015em; margin:0 0 8px; font-weight:650; }
+  .sub { color:var(--muted); font-size:12px; }
+  .toolbar { display:flex; gap:8px; margin-top:20px; }
+  button { font:inherit; font-size:12px; padding:6px 12px; border-radius:6px; cursor:pointer;
+    border:1px solid var(--line); background:transparent; color:inherit; }
+  button.on { background:#2f71e3; border-color:#2f71e3; color:#fff; }
+  main { max-width:1080px; margin:0 auto; }
+  section.mode { display:none; }
+  section.mode.show { display:block; }
+  h2 { font-size:18px; line-height:28px; margin:32px 0 12px; font-weight:550; text-transform:capitalize; }
+  h3 { font-size:12px; line-height:16px; letter-spacing:.02em; text-transform:uppercase;
+       color:var(--muted); margin:24px 0 8px; font-weight:550; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:8px; }
+  .chip { display:flex; gap:10px; align-items:center; padding:8px; border-radius:8px;
+    border:1px solid var(--line); background:rgba(255,255,255,.02); }
+  .sw { width:36px; height:36px; border-radius:6px; flex:none; box-shadow:inset 0 0 0 1px rgba(255,255,255,.12); }
+  .meta { display:flex; flex-direction:column; min-width:0; }
+  .meta b { font-weight:550; font-size:12px; }
+  .meta span { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px;
+    color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .meta i { font-style:normal; font-size:10px; color:var(--muted); opacity:.7; }
+  .type-row { display:flex; align-items:baseline; gap:16px; padding:6px 0; border-bottom:1px solid var(--line); }
+  .type-row .tag { width:80px; font-size:11px; color:var(--muted);
+    font-family:ui-monospace,Menlo,monospace; flex:none; }
+  .bar { height:12px; border-radius:3px; background:#2f71e3; display:inline-block; vertical-align:middle; }
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  td,th { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); font-weight:550; }
+  code { font-family:ui-monospace,Menlo,monospace; font-size:11px; color:#9cb8e0; }
+</style></head>
+<body>
+<header>
+  <h1>Antigravity 2.32.2 — 设计系统</h1>
+  <div class="sub">静态提取自 app.asar 外壳与 language_server Web bundle · 主题 onyx · 每个 token 含 normal / high-contrast 两档</div>
+  <div class="toolbar">
+    <button id="t-dark" class="on">dark</button>
+    <button id="t-light">light</button>
+  </div>
+</header>
+<main>
+  
+  <section class="mode light" data-mode="light">
+    <h2>light</h2>
+    
+    <h3>surface</h3>
+    <div class="grid"><div class="chip"><div class="sw" style="background:#FFFFFF"></div>
+   <div class="meta"><b>canvas</b><span>#FFFFFF</span><i>HC #FFFFFF</i></div></div><div class="chip"><div class="sw" style="background:rgb(10 10 12 / 0.06)"></div>
+   <div class="meta"><b>muted</b><span>rgb(10 10 12 / 0.06)</span><i>HC rgb(10 10 12 / 0.095)</i></div></div><div class="chip"><div class="sw" style="background:rgb(10 10 12 / 0.038)"></div>
+   <div class="meta"><b>subtle</b><span>rgb(10 10 12 / 0.038)</span><i>HC rgb(10 10 12 / 0.06)</i></div></div><div class="chip"><div class="sw" style="background:#FAFAFA"></div>
+   <div class="meta"><b>sidebar</b><span>#FAFAFA</span><i>HC #F3F3F3</i></div></div><div class="chip"><div class="sw" style="background:rgb(10 10 12 / 0.075)"></div>
+   <div class="meta"><b>sidebar-raised</b><span>rgb(10 10 12 / 0.075)</span><i>HC rgb(10 10 12 / 0.115)</i></div></div><div class="chip"><div class="sw" style="background:rgb(10 10 12 / 0.042)"></div>
+   <div class="meta"><b>sidebar-sunken</b><span>rgb(10 10 12 / 0.042)</span><i>HC rgb(10 10 12 / 0.07)</i></div></div><div class="chip"><div class="sw" style="background:#FFFFFF"></div>
+   <div class="meta"><b>card</b><span>#FFFFFF</span><i>HC #FFFFFF</i></div></div><div class="chip"><div class="sw" style="background:#FFFFFF"></div>
+   <div class="meta"><b>glass</b><span>#FFFFFF</span><i>HC #FFFFFF</i></div></div><div class="chip"><div class="sw" style="background:#FAFAFA"></div>
+   <div class="meta"><b>shell</b><span>#FAFAFA</span><i>HC #F3F3F3</i></div></div></div>
+    
+    <h3>content</h3>
+    <div class="grid"><div class="chip"><div class="sw" style="background:#0A0A0C"></div>
+   <div class="meta"><b>primary</b><span>#0A0A0C</span><i>HC #000000</i></div></div><div class="chip"><div class="sw" style="background:#3F3F46"></div>
+   <div class="meta"><b>secondary</b><span>#3F3F46</span><i>HC #27272A</i></div></div><div class="chip"><div class="sw" style="background:#71717A"></div>
+   <div class="meta"><b>tertiary</b><span>#71717A</span><i>HC #52525B</i></div></div><div class="chip"><div class="sw" style="background:#8E8E95"></div>
+   <div class="meta"><b>placeholder</b><span>#8E8E95</span><i>HC #71717A</i></div></div></div>
+    
+    <h3>border</h3>
+    <div class="grid"><div class="chip"><div class="sw" style="background:rgb(10 10 12 / 0.07)"></div>
+   <div class="meta"><b>card</b><span>rgb(10 10 12 / 0.07)</span><i>HC rgb(10 10 12 / 0.12)</i></div></div><div class="chip"><div class="sw" style="background:rgb(10 10 12 / 0.06)"></div>
+   <div class="meta"><b>default</b><span>rgb(10 10 12 / 0.06)</span><i>HC rgb(10 10 12 / 0.11)</i></div></div><div class="chip"><div class="sw" style="background:rgb(10 10 12 / 0.065)"></div>
+   <div class="meta"><b>glass</b><span>rgb(10 10 12 / 0.065)</span><i>HC rgb(10 10 12 / 0.115)</i></div></div><div class="chip"><div class="sw" style="background:rgb(255 255 255 / 1)"></div>
+   <div class="meta"><b>glass-highlight</b><span>rgb(255 255 255 / 1)</span><i>HC rgb(255 255 255 / 1)</i></div></div></div>
+    
+    <h3>accent</h3>
+    <div class="grid"><div class="chip"><div class="sw" style="background:#2F75C3"></div>
+   <div class="meta"><b>default</b><span>#2F75C3</span><i>HC #2560A3</i></div></div><div class="chip"><div class="sw" style="background:#FFFFFF"></div>
+   <div class="meta"><b>on-accent</b><span>#FFFFFF</span><i>HC #FFFFFF</i></div></div></div>
+    
+    <h3>status</h3>
+    <div class="grid"><div class="chip"><div class="sw" style="background:#f05151"></div>
+   <div class="meta"><b>error</b><span>#f05151</span></div></div><div class="chip"><div class="sw" style="background:#ac830b"></div>
+   <div class="meta"><b>warning</b><span>#ac830b</span></div></div><div class="chip"><div class="sw" style="background:#3e8ed1"></div>
+   <div class="meta"><b>link</b><span>#3e8ed1</span></div></div><div class="chip"><div class="sw" style="background:#58983f"></div>
+   <div class="meta"><b>success</b><span>#58983f</span></div></div><div class="chip"><div class="sw" style="background:#a31515"></div>
+   <div class="meta"><b>code</b><span>#a31515</span></div></div></div>
+    
+    <h3>chart</h3>
+    <div class="grid"><div class="chip"><div class="sw" style="background:#1d4ed8"></div>
+   <div class="meta"><b>1</b><span>#1d4ed8</span></div></div><div class="chip"><div class="sw" style="background:#b45309"></div>
+   <div class="meta"><b>2</b><span>#b45309</span></div></div><div class="chip"><div class="sw" style="background:#15803d"></div>
+   <div class="meta"><b>3</b><span>#15803d</span></div></div><div class="chip"><div class="sw" style="background:#7e22ce"></div>
+   <div class="meta"><b>4</b><span>#7e22ce</span></div></div><div class="chip"><div class="sw" style="background:#be123c"></div>
+   <div class="meta"><b>5</b><span>#be123c</span></div></div><div class="chip"><div class="sw" style="background:#0369a1"></div>
+   <div class="meta"><b>6</b><span>#0369a1</span></div></div></div>
+    
+    <h3>onyx</h3>
+    <div class="grid"><div class="chip"><div class="sw" style="background:#F9F9F9"></div>
+   <div class="meta"><b>frame</b><span>#F9F9F9</span></div></div><div class="chip"><div class="sw" style="background:rgb(10 10 12 / 0.055)"></div>
+   <div class="meta"><b>well</b><span>rgb(10 10 12 / 0.055)</span></div></div><div class="chip"><div class="sw" style="background:#FFFFFF"></div>
+   <div class="meta"><b>raised</b><span>#FFFFFF</span></div></div><div class="chip"><div class="sw" style="background:#FFFFFF"></div>
+   <div class="meta"><b>selected</b><span>#FFFFFF</span></div></div><div class="chip"><div class="sw" style="background:#FFFFFF"></div>
+   <div class="meta"><b>key</b><span>#FFFFFF</span></div></div></div>
+  </section>
+  
+  <section class="mode dark" data-mode="dark">
+    <h2>dark</h2>
+    
+    <h3>surface</h3>
+    <div class="grid"><div class="chip"><div class="sw" style="background:#070708"></div>
+   <div class="meta"><b>canvas</b><span>#070708</span><i>HC #050507</i></div></div><div class="chip"><div class="sw" style="background:rgb(255 255 255 / 0.075)"></div>
+   <div class="meta"><b>muted</b><span>rgb(255 255 255 / 0.075)</span><i>HC rgb(255 255 255 / 0.115)</i></div></div><div class="chip"><div class="sw" style="background:rgb(255 255 255 / 0.042)"></div>
+   <div class="meta"><b>subtle</b><span>rgb(255 255 255 / 0.042)</span><i>HC rgb(255 255 255 / 0.068)</i></div></div><div class="chip"><div class="sw" style="background:#111114"></div>
+   <div class="meta"><b>sidebar</b><span>#111114</span><i>HC #121216</i></div></div><div class="chip"><div class="sw" style="background:rgb(255 255 255 / 0.09)"></div>
+   <div class="meta"><b>sidebar-raised</b><span>rgb(255 255 255 / 0.09)</span><i>HC rgb(255 255 255 / 0.135)</i></div></div><div class="chip"><div class="sw" style="background:rgb(255 255 255 / 0.048)"></div>
+   <div class="meta"><b>sidebar-sunken</b><span>rgb(255 255 255 / 0.048)</span><i>HC rgb(255 255 255 / 0.08)</i></div></div><div class="chip"><div class="sw" style="background:#131317"></div>
+   <div class="meta"><b>card</b><span>#131317</span><i>HC #17171C</i></div></div><div class="chip"><div class="sw" style="background:#131317"></div>
+   <div class="meta"><b>glass</b><span>#131317</span><i>HC #16161A</i></div></div><div class="chip"><div class="sw" style="background:#111114"></div>
+   <div class="meta"><b>shell</b><span>#111114</span><i>HC #121216</i></div></div></div>
+    
+    <h3>content</h3>
+    <div class="grid"><div class="chip"><div class="sw" style="background:#FFFFFF"></div>
+   <div class="meta"><b>primary</b><span>#FFFFFF</span><i>HC #FFFFFF</i></div></div><div class="chip"><div class="sw" style="background:#BCBDC6"></div>
+   <div class="meta"><b>secondary</b><span>#BCBDC6</span><i>HC #EAEBF1</i></div></div><div class="chip"><div class="sw" style="background:#87888F"></div>
+   <div class="meta"><b>tertiary</b><span>#87888F</span><i>HC #A8A9B2</i></div></div><div class="chip"><div class="sw" style="background:#636470"></div>
+   <div class="meta"><b>placeholder</b><span>#636470</span><i>HC #888990</i></div></div></div>
+    
+    <h3>border</h3>
+    <div class="grid"><div class="chip"><div class="sw" style="background:rgb(255 255 255 / 0.08)"></div>
+   <div class="meta"><b>card</b><span>rgb(255 255 255 / 0.08)</span><i>HC rgb(255 255 255 / 0.13)</i></div></div><div class="chip"><div class="sw" style="background:rgb(255 255 255 / 0.06)"></div>
+   <div class="meta"><b>default</b><span>rgb(255 255 255 / 0.06)</span><i>HC rgb(255 255 255 / 0.11)</i></div></div><div class="chip"><div class="sw" style="background:rgb(255 255 255 / 0.085)"></div>
+   <div class="meta"><b>glass</b><span>rgb(255 255 255 / 0.085)</span><i>HC rgb(255 255 255 / 0.14)</i></div></div><div class="chip"><div class="sw" style="background:rgb(255 255 255 / 0.085)"></div>
+   <div class="meta"><b>glass-highlight</b><span>rgb(255 255 255 / 0.085)</span><i>HC rgb(255 255 255 / 0.12)</i></div></div></div>
+    
+    <h3>accent</h3>
+    <div class="grid"><div class="chip"><div class="sw" style="background:#2F71E3"></div>
+   <div class="meta"><b>default</b><span>#2F71E3</span><i>HC #2F71E3</i></div></div><div class="chip"><div class="sw" style="background:#FFFFFF"></div>
+   <div class="meta"><b>on-accent</b><span>#FFFFFF</span><i>HC #FFFFFF</i></div></div></div>
+    
+    <h3>status</h3>
+    <div class="grid"><div class="chip"><div class="sw" style="background:#de5555"></div>
+   <div class="meta"><b>error</b><span>#de5555</span></div></div><div class="chip"><div class="sw" style="background:#f3c949"></div>
+   <div class="meta"><b>warning</b><span>#f3c949</span></div></div><div class="chip"><div class="sw" style="background:#6a9fcb"></div>
+   <div class="meta"><b>link</b><span>#6a9fcb</span></div></div><div class="chip"><div class="sw" style="background:#7aae66"></div>
+   <div class="meta"><b>success</b><span>#7aae66</span></div></div><div class="chip"><div class="sw" style="background:#d7ba7d"></div>
+   <div class="meta"><b>code</b><span>#d7ba7d</span></div></div></div>
+    
+    <h3>chart</h3>
+    <div class="grid"><div class="chip"><div class="sw" style="background:#60a5fa"></div>
+   <div class="meta"><b>1</b><span>#60a5fa</span></div></div><div class="chip"><div class="sw" style="background:#fbbf24"></div>
+   <div class="meta"><b>2</b><span>#fbbf24</span></div></div><div class="chip"><div class="sw" style="background:#34d399"></div>
+   <div class="meta"><b>3</b><span>#34d399</span></div></div><div class="chip"><div class="sw" style="background:#c084fc"></div>
+   <div class="meta"><b>4</b><span>#c084fc</span></div></div><div class="chip"><div class="sw" style="background:#fb7185"></div>
+   <div class="meta"><b>5</b><span>#fb7185</span></div></div><div class="chip"><div class="sw" style="background:#38bdf8"></div>
+   <div class="meta"><b>6</b><span>#38bdf8</span></div></div></div>
+    
+    <h3>onyx</h3>
+    <div class="grid"><div class="chip"><div class="sw" style="background:#0D0D11"></div>
+   <div class="meta"><b>frame</b><span>#0D0D11</span></div></div><div class="chip"><div class="sw" style="background:#111115"></div>
+   <div class="meta"><b>well</b><span>#111115</span></div></div><div class="chip"><div class="sw" style="background:#15151A"></div>
+   <div class="meta"><b>raised</b><span>#15151A</span></div></div><div class="chip"><div class="sw" style="background:#1F1F24"></div>
+   <div class="meta"><b>selected</b><span>#1F1F24</span></div></div><div class="chip"><div class="sw" style="background:#24252A"></div>
+   <div class="meta"><b>key</b><span>#24252A</span></div></div></div>
+  </section>
+
+  <section class="mode show" data-mode="all">
+    <h2 style="margin-top:48px">type scale</h2>
+    <div class="type-row"><span class="tag">xs · 11px/16px</span>
+      <span style="font-size:11px;line-height:16px;font-weight:350">The quick brown fox 中文排版</span></div><div class="type-row"><span class="tag">sm · 12px/16px</span>
+      <span style="font-size:12px;line-height:16px;font-weight:350">The quick brown fox 中文排版</span></div><div class="type-row"><span class="tag">compact · 13px/20px</span>
+      <span style="font-size:13px;line-height:20px;font-weight:350">The quick brown fox 中文排版</span></div><div class="type-row"><span class="tag">base · 14px/20px</span>
+      <span style="font-size:14px;line-height:20px;font-weight:350">The quick brown fox 中文排版</span></div><div class="type-row"><span class="tag">lg · 16px/24px</span>
+      <span style="font-size:16px;line-height:24px;font-weight:350">The quick brown fox 中文排版</span></div><div class="type-row"><span class="tag">xl · 18px/28px</span>
+      <span style="font-size:18px;line-height:28px;font-weight:350">The quick brown fox 中文排版</span></div><div class="type-row"><span class="tag">2xl · 20px/28px</span>
+      <span style="font-size:20px;line-height:28px;font-weight:350">The quick brown fox 中文排版</span></div><div class="type-row"><span class="tag">3xl · 24px/32px</span>
+      <span style="font-size:24px;line-height:32px;font-weight:350">The quick brown fox 中文排版</span></div>
+    <h3 style="margin-top:32px">weights</h3>
+    <div class="grid">
+      <div class="chip"><div class="meta"><b style="font-weight:250;font-size:14px">light</b>
+         <span>weight 250</span></div></div><div class="chip"><div class="meta"><b style="font-weight:350;font-size:14px">normal</b>
+         <span>weight 350</span></div></div><div class="chip"><div class="meta"><b style="font-weight:450;font-size:14px">medium</b>
+         <span>weight 450</span></div></div><div class="chip"><div class="meta"><b style="font-weight:550;font-size:16px">semibold</b>
+         <span>weight 550</span></div></div><div class="chip"><div class="meta"><b style="font-weight:650;font-size:16px">bold</b>
+         <span>weight 650</span></div></div><div class="chip"><div class="meta"><b style="font-weight:850;font-size:16px">black</b>
+         <span>weight 850</span></div></div>
+    </div>
+    <h3 style="margin-top:32px">spacing</h3>
+    <div class="grid">
+      <div class="chip"><span class="bar" style="width:4px"></span>
+         <div class="meta"><b>xs</b><span>4px</span></div></div><div class="chip"><span class="bar" style="width:6px"></span>
+         <div class="meta"><b>sm</b><span>6px</span></div></div><div class="chip"><span class="bar" style="width:8px"></span>
+         <div class="meta"><b>md</b><span>8px</span></div></div><div class="chip"><span class="bar" style="width:12px"></span>
+         <div class="meta"><b>lg</b><span>12px</span></div></div><div class="chip"><span class="bar" style="width:16px"></span>
+         <div class="meta"><b>xl</b><span>16px</span></div></div><div class="chip"><span class="bar" style="width:24px"></span>
+         <div class="meta"><b>2xl</b><span>24px</span></div></div><div class="chip"><span class="bar" style="width:32px"></span>
+         <div class="meta"><b>3xl</b><span>32px</span></div></div>
+    </div>
+    <h3 style="margin-top:32px">radius</h3>
+    <div class="grid">
+      <div class="chip"><span style="width:36px;height:36px;background:#2f71e3;border-radius:2px;flex:none"></span>
+         <div class="meta"><b>xs</b><span>2px</span></div></div><div class="chip"><span style="width:36px;height:36px;background:#2f71e3;border-radius:4px;flex:none"></span>
+         <div class="meta"><b>sm</b><span>4px</span></div></div><div class="chip"><span style="width:36px;height:36px;background:#2f71e3;border-radius:6px;flex:none"></span>
+         <div class="meta"><b>md</b><span>6px</span></div></div><div class="chip"><span style="width:36px;height:36px;background:#2f71e3;border-radius:8px;flex:none"></span>
+         <div class="meta"><b>lg</b><span>8px</span></div></div><div class="chip"><span style="width:36px;height:36px;background:#2f71e3;border-radius:12px;flex:none"></span>
+         <div class="meta"><b>xl</b><span>12px</span></div></div><div class="chip"><span style="width:36px;height:36px;background:#2f71e3;border-radius:16px;flex:none"></span>
+         <div class="meta"><b>2xl</b><span>16px</span></div></div><div class="chip"><span style="width:36px;height:36px;background:#2f71e3;border-radius:18px;flex:none"></span>
+         <div class="meta"><b>full</b><span>9999px</span></div></div>
+    </div>
+    <h3 style="margin-top:32px">contrast</h3>
+    <table><tr><th>pair</th><th>light</th><th>dark</th></tr>
+      <tr><td><code>content/primary on surface/canvas</code></td>
+        <td>19.78</td><td>20.14</td></tr><tr><td><code>content/primary on surface/card</code></td>
+        <td>19.78</td><td>18.53</td></tr><tr><td><code>content/secondary on surface/canvas</code></td>
+        <td>10.44</td><td>10.77</td></tr><tr><td><code>content/tertiary on surface/canvas</code></td>
+        <td>4.83</td><td>5.7</td></tr><tr><td><code>content/placeholder on surface/canvas</code></td>
+        <td>3.25</td><td>3.44</td></tr><tr><td><code>accent/default on surface/canvas</code></td>
+        <td>4.72</td><td>4.4</td></tr><tr><td><code>accent/on-accent on accent/default</code></td>
+        <td>4.72</td><td>4.57</td></tr><tr><td><code>content/primary on surface/sidebar</code></td>
+        <td>18.95</td><td>18.85</td></tr><tr><td><code>content/primary on surface/shell</code></td>
+        <td>18.95</td><td>18.85</td></tr>
+    </table>
+  </section>
+</main>
+<script>
+  const set = (m) => {
+    document.querySelectorAll('section.mode').forEach((s) => {
+      s.classList.toggle('show', s.dataset.mode === m || s.dataset.mode === 'all');
+    });
+    document.documentElement.style.setProperty('--bg', m === 'light' ? '#fff' : '#111114');
+    document.documentElement.style.setProperty('--fg', m === 'light' ? '#0a0a0c' : '#fff');
+    document.documentElement.style.setProperty('--muted', m === 'light' ? '#71717a' : '#87888f');
+    document.documentElement.style.setProperty('--line', m === 'light' ? 'rgba(10,10,12,.09)' : 'rgba(255,255,255,.08)');
+    for (const id of ['dark', 'light']) document.getElementById('t-' + id).classList.toggle('on', id === m);
+  };
+  document.getElementById('t-dark').onclick = () => set('dark');
+  document.getElementById('t-light').onclick = () => set('light');
+  set('dark');
+</script>
+</body></html>

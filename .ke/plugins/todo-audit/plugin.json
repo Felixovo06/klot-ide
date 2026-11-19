@@ -1,0 +1,13 @@
+{
+  "id": "todo-audit",
+  "name": "TODO 与 FIXME 审计",
+  "version": "0.1.0",
+  "description": "扫描工作区源码中的 TODO 与 FIXME 标记并在底部面板展示结构化报告",
+  "slot": "drawer_view",
+  "entry": "run.mjs",
+  "runtime": "node",
+  "triggers": {
+    "menu": "gear",
+    "palette": true
+  }
+}

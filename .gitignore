@@ -1,0 +1,16 @@
+# 依赖与构建产物
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Rust / Tauri
+src-tauri/target/
+src-tauri/WixTools/
+*.rs.bk
+
+# 系统与编辑器缓存
+.DS_Store
+.vscode/
+.idea/
+*.log

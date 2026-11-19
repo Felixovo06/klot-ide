@@ -1,0 +1,168 @@
+{
+  "onyx": {
+    "light": {
+      "--background": {
+        "normal": "#FFFFFF",
+        "highContrast": "#FFFFFF"
+      },
+      "--foreground": {
+        "normal": "#0A0A0C",
+        "highContrast": "#000000"
+      },
+      "--primary": {
+        "normal": "#2F75C3",
+        "highContrast": "#2560A3"
+      },
+      "--primary-foreground": {
+        "normal": "#FFFFFF",
+        "highContrast": "#FFFFFF"
+      },
+      "--shell": {
+        "normal": "#FAFAFA",
+        "highContrast": "#F3F3F3"
+      },
+      "--sidebar": {
+        "normal": "#FAFAFA",
+        "highContrast": "#F3F3F3"
+      },
+      "--sidebar-secondary": {
+        "normal": "rgb(10 10 12 / 0.075)",
+        "highContrast": "rgb(10 10 12 / 0.115)"
+      },
+      "--sidebar-muted": {
+        "normal": "rgb(10 10 12 / 0.042)",
+        "highContrast": "rgb(10 10 12 / 0.07)"
+      },
+      "--secondary": {
+        "normal": "rgb(10 10 12 / 0.06)",
+        "highContrast": "rgb(10 10 12 / 0.095)"
+      },
+      "--secondary-foreground": {
+        "normal": "#3F3F46",
+        "highContrast": "#27272A"
+      },
+      "--muted": {
+        "normal": "rgb(10 10 12 / 0.038)",
+        "highContrast": "rgb(10 10 12 / 0.06)"
+      },
+      "--muted-foreground": {
+        "normal": "#71717A",
+        "highContrast": "#52525B"
+      },
+      "--placeholder": {
+        "normal": "#8E8E95",
+        "highContrast": "#71717A"
+      },
+      "--card": {
+        "normal": "#FFFFFF",
+        "highContrast": "#FFFFFF"
+      },
+      "--card-border": {
+        "normal": "rgb(10 10 12 / 0.07)",
+        "highContrast": "rgb(10 10 12 / 0.12)"
+      },
+      "--border": {
+        "normal": "rgb(10 10 12 / 0.06)",
+        "highContrast": "rgb(10 10 12 / 0.11)"
+      },
+      "--glass": {
+        "normal": "#FFFFFF",
+        "highContrast": "#FFFFFF"
+      },
+      "--glass-border": {
+        "normal": "rgb(10 10 12 / 0.065)",
+        "highContrast": "rgb(10 10 12 / 0.115)"
+      },
+      "--glass-highlight": {
+        "normal": "rgb(255 255 255 / 1)",
+        "highContrast": "rgb(255 255 255 / 1)"
+      },
+      "--scrim": {
+        "normal": "rgb(10 10 12 / 0.28)",
+        "highContrast": "rgb(10 10 12 / 0.38)"
+      }
+    },
+    "dark": {
+      "--background": {
+        "normal": "#070708",
+        "highContrast": "#050507"
+      },
+      "--foreground": {
+        "normal": "#FFFFFF",
+        "highContrast": "#FFFFFF"
+      },
+      "--primary": {
+        "normal": "#2F71E3",
+        "highContrast": "#2F71E3"
+      },
+      "--primary-foreground": {
+        "normal": "#FFFFFF",
+        "highContrast": "#FFFFFF"
+      },
+      "--shell": {
+        "normal": "#111114",
+        "highContrast": "#121216"
+      },
+      "--sidebar": {
+        "normal": "#111114",
+        "highContrast": "#121216"
+      },
+      "--sidebar-secondary": {
+        "normal": "rgb(255 255 255 / 0.09)",
+        "highContrast": "rgb(255 255 255 / 0.135)"
+      },
+      "--sidebar-muted": {
+        "normal": "rgb(255 255 255 / 0.048)",
+        "highContrast": "rgb(255 255 255 / 0.08)"
+      },
+      "--secondary": {
+        "normal": "rgb(255 255 255 / 0.075)",
+        "highContrast": "rgb(255 255 255 / 0.115)"
+      },
+      "--secondary-foreground": {
+        "normal": "#BCBDC6",
+        "highContrast": "#EAEBF1"
+      },
+      "--muted": {
+        "normal": "rgb(255 255 255 / 0.042)",
+        "highContrast": "rgb(255 255 255 / 0.068)"
+      },
+      "--muted-foreground": {
+        "normal": "#87888F",
+        "highContrast": "#A8A9B2"
+      },
+      "--placeholder": {
+        "normal": "#636470",
+        "highContrast": "#888990"
+      },
+      "--card": {
+        "normal": "#131317",
+        "highContrast": "#17171C"
+      },
+      "--card-border": {
+        "normal": "rgb(255 255 255 / 0.08)",
+        "highContrast": "rgb(255 255 255 / 0.13)"
+      },
+      "--border": {
+        "normal": "rgb(255 255 255 / 0.06)",
+        "highContrast": "rgb(255 255 255 / 0.11)"
+      },
+      "--glass": {
+        "normal": "#131317",
+        "highContrast": "#16161A"
+      },
+      "--glass-border": {
+        "normal": "rgb(255 255 255 / 0.085)",
+        "highContrast": "rgb(255 255 255 / 0.14)"
+      },
+      "--glass-highlight": {
+        "normal": "rgb(255 255 255 / 0.085)",
+        "highContrast": "rgb(255 255 255 / 0.12)"
+      },
+      "--scrim": {
+        "normal": "rgb(0 0 0 / 0.64)",
+        "highContrast": "rgb(0 0 0 / 0.76)"
+      }
+    }
+  }
+}

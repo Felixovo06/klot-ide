@@ -1,0 +1,14 @@
+{
+  "id": "commit-craft",
+  "name": "提交信息生成与审查",
+  "version": "0.1.0",
+  "description": "读取工作区 git status -s 与 git diff --stat，向右侧 CLI 发送结构化中文代码审查与提交信息生成指令",
+  "slot": "command",
+  "entry": "run.mjs",
+  "runtime": "node",
+  "triggers": {
+    "menu": "gear",
+    "shortcut": "Cmd+Shift+G",
+    "palette": true
+  }
+}

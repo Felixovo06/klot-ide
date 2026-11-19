@@ -1,0 +1,13 @@
+{
+  "id": "env-doctor",
+  "name": "开发环境与工具链诊断",
+  "version": "0.1.0",
+  "description": "检测本机常用开发工具链版本与 Klot IDE 环境变量就绪情况，在底部抽屉生成诊断表格",
+  "slot": "drawer_view",
+  "entry": "run.mjs",
+  "runtime": "node",
+  "triggers": {
+    "menu": "gear",
+    "palette": true
+  }
+}

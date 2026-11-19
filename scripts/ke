@@ -1,0 +1,42 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+# Klot IDE (KE) 命令行启动脚本：ke [目录或文件路径]
+
+RAW_TARGET="${1:-.}"
+
+if [[ ! -e "$RAW_TARGET" ]]; then
+  echo "路径不存在: $RAW_TARGET" >&2
+  exit 1
+fi
+
+if [[ -d "$RAW_TARGET" ]]; then
+  TARGET_PATH="$(cd "$RAW_TARGET" && pwd -P)"
+else
+  TARGET_DIR="$(cd "$(dirname "$RAW_TARGET")" && pwd -P)"
+  TARGET_PATH="$TARGET_DIR"
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd -P)"
+
+APP_SYSTEM="/Applications/Klot IDE.app"
+APP_BUNDLE="$REPO_ROOT/src-tauri/target/release/bundle/macos/Klot IDE.app"
+BIN_RELEASE="$REPO_ROOT/src-tauri/target/release/klot-ide"
+BIN_DEBUG="$REPO_ROOT/src-tauri/target/debug/klot-ide"
+
+if [[ -d "$APP_SYSTEM" ]]; then
+  open -na "$APP_SYSTEM" --args "$TARGET_PATH"
+elif [[ -d "$APP_BUNDLE" ]]; then
+  open -na "$APP_BUNDLE" --args "$TARGET_PATH"
+elif [[ -x "$BIN_RELEASE" ]]; then
+  nohup "$BIN_RELEASE" "$TARGET_PATH" >/dev/null 2>&1 &
+elif [[ -x "$BIN_DEBUG" ]]; then
+  nohup "$BIN_DEBUG" "$TARGET_PATH" >/dev/null 2>&1 &
+else
+  echo "未找到已编译的 Klot IDE 应用或二进制文件，请先执行:" >&2
+  echo "  cd \"$REPO_ROOT\" && npm run tauri build" >&2
+  echo "或以开发模式启动:" >&2
+  echo "  cd \"$REPO_ROOT\" && npm run tauri dev" >&2
+  exit 1
+fi

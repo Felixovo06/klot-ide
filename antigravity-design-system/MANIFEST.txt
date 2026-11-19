@@ -1,0 +1,32 @@
+# Antigravity Design System — manifest
+# generated 2026-11-18T09:51:42Z · app 2.32.2 · theme onyx
+
+## sha256
+bccd3670acdf9d5027c894007832ac8c6820f3eb4c608df7f2278e9d92ced06c  DESIGN-SYSTEM.md
+e96b217f387827db768d1343a147c162b97fc2c33e39bec55397e00e1f8c00b9  README.md
+2d9d809278bf8de8266c947a864a08710901822c0a65b56fcca4295cff64d1e2  contrast.json
+52a96f7bed5922075a8bf4c2980d25dcdca4e40ed0381f0456588123a1338b14  harvest/compiled_tailwind.css
+81358b064ce60d1458c9b0faeaf0d91a768244a720b9afd16af29ea55a7b0ca8  harvest/index.html
+c1938159348c6986ab39baf0784812a973d28f321ec11a2445e780404118df20  harvest/jetbox.css
+4643386cc3a2a89789781294b426bbbec04ea4e72ea888954d0a5937eb1bd9a8  harvest/theme.json
+d31ba30f9528bdc722c8f12c1685877af817a9bb4956c1181f8e1c7cd7fa3e27  palette.html
+3b5c9832c5f90ef7c4aa20532584bd5402fa45abb1602d9f4a6017333424b686  scripts/build.mjs
+66228f2e5afc386aad5417c5273791721e22331f31b499c366f0a72e1d97189e  scripts/emit.mjs
+bd830cc9171385c08be97a8e2e236f6400abc591fe863c810060d6e36e9f74ee  tailwind.config.js
+058ce8104d6fbeb072bdf8e349eec0da2071ea9749e0d625f4e179334b38ae39  tokens.css
+f7d7a604124eb629096bab6f521015304689266278d10615ffa9d0371d97c31d  tokens.json
+
+## files
+    7163  DESIGN-SYSTEM.md
+    3854  README.md
+    2141  contrast.json
+  341059  harvest/compiled_tailwind.css
+    3986  harvest/index.html
+   95543  harvest/jetbox.css
+    4436  harvest/theme.json
+   21333  palette.html
+   22300  scripts/build.mjs
+    4963  scripts/emit.mjs
+    3285  tailwind.config.js
+    7604  tokens.css
+   12150  tokens.json

@@ -1,0 +1,14 @@
+{
+  "id": "git-review-to-cli",
+  "name": "变更审查投喂 CLI",
+  "version": "0.1.0",
+  "description": "读取当前仓库 git diff --stat 并生成结构化审查请求发送到右侧 CLI",
+  "slot": "command",
+  "entry": "run.mjs",
+  "runtime": "node",
+  "triggers": {
+    "menu": "gear",
+    "shortcut": "Cmd+Shift+G",
+    "palette": true
+  }
+}
