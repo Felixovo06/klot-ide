@@ -38,6 +38,13 @@ export interface FsFileContent {
   modifiedMs: number;
 }
 
+export interface FsAssetDataUrl {
+  path: string;
+  mimeType: string;
+  dataUrl: string;
+  size: number;
+}
+
 export interface FsChangedEvent {
   root: string;
   paths: string[];

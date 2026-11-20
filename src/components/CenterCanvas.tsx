@@ -1,6 +1,6 @@
 import { useUiStore } from '../stores/uiStore';
 import { Breadcrumb } from './Breadcrumb';
-import { CodeEditor } from './CodeEditor';
+import { EditorStage } from './EditorStage';
 import { EditorTabs } from './EditorTabs';
 import { GitCenter } from './GitWorkbench';
 import { RunDrawer } from './RunDrawer';
@@ -14,7 +14,7 @@ export function CenterCanvas() {
         <div className="onyx-center-pane" style={{ display: mode === 'code' ? 'flex' : 'none' }}>
           <EditorTabs />
           <Breadcrumb />
-          <CodeEditor />
+          <EditorStage />
         </div>
         <div className="onyx-center-pane" style={{ display: mode === 'git' ? 'flex' : 'none' }}>
           <GitCenter />

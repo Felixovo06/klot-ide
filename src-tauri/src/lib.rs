@@ -39,6 +39,7 @@ pub fn run() {
             fs_tree::fs_delete,
             fs_tree::fs_watch_workspace,
             fs_tree::fs_reveal_in_finder,
+            fs_tree::fs_read_asset_data_url,
             search::search_workspace,
             search::search_replace,
             git_ops::git_init,

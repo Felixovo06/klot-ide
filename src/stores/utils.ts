@@ -65,6 +65,8 @@ const LANGUAGE_BY_EXT: Record<string, string> = {
   vue: 'html',
   md: 'markdown',
   markdown: 'markdown',
+  mdx: 'markdown',
+  mkd: 'markdown',
   rs: 'rust',
   py: 'python',
   go: 'go',
@@ -98,6 +100,41 @@ export function languageForPath(p: string): string {
   if (b === 'dockerfile') return 'dockerfile';
   if (b === 'makefile') return 'plaintext';
   return LANGUAGE_BY_EXT[extname(p)] ?? 'plaintext';
+}
+
+export function isMarkdownPath(p: string | null | undefined): boolean {
+  return Boolean(p && languageForPath(p) === 'markdown');
+}
+
+function safeDecodeUri(s: string): string {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
+}
+
+/** 将 Markdown 中的相对路径或工作区根相对路径解析为工作区相对路径；越出工作区根目录返回 null */
+export function resolveRelativePath(fromFileRel: string, targetHref: string): string | null {
+  const noHash = targetHref.split('#')[0] ?? '';
+  const noQuery = noHash.split('?')[0] ?? '';
+  const clean = safeDecodeUri(normalizeSlashes(noQuery).trim());
+  if (!clean || /^[A-Za-z]:/.test(clean)) return null;
+
+  const isRootRel = clean.startsWith('/');
+  const baseParts = isRootRel ? [] : dirname(fromFileRel).split('/').filter(Boolean);
+  const relParts = clean.replace(/^\/+/, '').split('/');
+  const out = [...baseParts];
+  for (const seg of relParts) {
+    if (!seg || seg === '.') continue;
+    if (seg === '..') {
+      if (out.length === 0) return null;
+      out.pop();
+    } else {
+      out.push(seg);
+    }
+  }
+  return out.length > 0 ? out.join('/') : null;
 }
 
 export function lspLangForPath(p: string): string | null {

@@ -18,7 +18,7 @@ export function symbolsForModel(model: monaco.editor.ITextModel): SymbolEntry[] 
   const version = model.getVersionId();
   const cached = symbolCache.get(model);
   if (cached && cached.version === version) return cached.symbols;
-  const symbols = scanSymbols(model.getValue());
+  const symbols = scanSymbols(model.getValue(), model.getLanguageId());
   symbolCache.set(model, { version, symbols });
   return symbols;
 }
@@ -55,12 +55,14 @@ function EmptyState() {
   );
 }
 
-export function CodeEditor() {
+export function CodeEditor({ hidden = false }: { hidden?: boolean }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const decorationsRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
   const viewStates = useRef(new Map<string, monaco.editor.ICodeEditorViewState | null>());
   const currentPathRef = useRef<string | null>(null);
+  const hiddenRef = useRef(hidden);
+  hiddenRef.current = hidden;
   const activePath = useWorkspaceStore((s) => s.activePath);
   const root = useWorkspaceStore((s) => s.root);
   const reveal = useWorkspaceStore((s) => s.reveal);
@@ -107,6 +109,7 @@ export function CodeEditor() {
     });
 
     const updateCursorInfo = debounce(() => {
+      if (hiddenRef.current) return;
       const model = editor.getModel();
       const sel = editor.getSelection();
       const ws = useWorkspaceStore.getState();
@@ -173,13 +176,14 @@ export function CodeEditor() {
       if (vs) editor.restoreViewState(vs);
     }
     currentPathRef.current = activePath;
-    if (useUiStore.getState().mode === 'code') editor.focus();
+    if (useUiStore.getState().mode === 'code' && !hiddenRef.current) editor.focus();
   }, [activePath, root]);
 
   // 定位到指定行
   useEffect(() => {
+    if (hiddenRef.current) return;
     const editor = editorRef.current;
-    if (!editor || !reveal || reveal.path !== activePath) return;
+    if (!editor || !reveal || reveal.path !== activePath || !reveal.line) return;
     const model = editor.getModel();
     if (!model) return;
     const line = Math.min(Math.max(1, reveal.line), model.getLineCount());

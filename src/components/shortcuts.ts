@@ -1,11 +1,12 @@
 // 快捷键解析与全局分发
 import { useEffect } from 'react';
 import { editorBridge } from '../stores/editorBridge';
+import { useGitStore } from '../stores/gitStore';
 import { usePluginStore } from '../stores/pluginStore';
 import { useUiStore } from '../stores/uiStore';
 import { useWorkspaceStore } from '../stores/workspaceStore';
 import { fullPathFromUri } from './monacoSetup';
-import { toRelPath } from '../stores/utils';
+import { isMarkdownPath, toRelPath } from '../stores/utils';
 
 export interface ParsedShortcut {
   mod: boolean; // Cmd（macOS）或 Ctrl（其他平台）
@@ -119,17 +120,37 @@ export const BUILTIN_SHORTCUTS: Array<{ keys: string; label: string }> = [
   { keys: 'Cmd+=', label: '放大编辑器字号' },
   { keys: 'Cmd+-', label: '缩小编辑器字号' },
   { keys: 'Cmd+0', label: '重置编辑器字号' },
+  { keys: 'Cmd+Shift+V', label: '切换 Markdown 阅读模式' },
+  { keys: 'Cmd+Alt+V', label: '切换 Markdown 分屏预览' },
   { keys: 'Cmd+L', label: '将选区作为上下文芯片发送到 CLI' },
   { keys: 'Cmd+,', label: '设置' },
   { keys: 'Cmd+Shift+X', label: '扩展' },
   { keys: 'Esc', label: '关闭弹窗' },
 ];
 
-const BUILTIN: Array<{ spec: ParsedShortcut; run: () => void }> = [];
+const BUILTIN: Array<{ spec: ParsedShortcut; run: () => void; when?: () => boolean }> = [];
 
-function registerBuiltin(spec: string, run: () => void) {
+function registerBuiltin(spec: string, run: () => void, when?: () => boolean) {
   const parsed = parseShortcut(spec);
-  if (parsed) BUILTIN.push({ spec: parsed, run });
+  if (parsed) BUILTIN.push({ spec: parsed, run, when });
+}
+
+function isPlainInputFocused(): boolean {
+  const el = document.activeElement;
+  if (!(el instanceof HTMLElement)) return false;
+  if (el.closest('.monaco-editor') && el.classList.contains('inputarea')) {
+    return false;
+  }
+  const tag = el.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+}
+
+function canToggleMarkdownView(): boolean {
+  const ui = useUiStore.getState();
+  const ws = useWorkspaceStore.getState();
+  if (ui.mode !== 'code' || ui.modal || ui.quickOpen.open) return false;
+  if (!isMarkdownPath(ws.activePath)) return false;
+  return !isPlainInputFocused();
 }
 
 function saveCurrent() {
@@ -138,7 +159,15 @@ function saveCurrent() {
   if (ui.mode === 'git') {
     const model = editorBridge.diffEditor?.getModifiedEditor().getModel();
     const full = model ? fullPathFromUri(model.uri) : null;
-    if (full && model?.uri.scheme === 'file') void ws.saveFile(toRelPath(ws.root, full));
+    if (full && model?.uri.scheme === 'file') {
+      const git = useGitStore.getState();
+      const repoRoot = git.activeRepoRoot || ws.root;
+      const wsRel =
+        repoRoot && full.startsWith(repoRoot)
+          ? git.toWorkspaceRel(toRelPath(repoRoot, full))
+          : toRelPath(ws.root, full);
+      void ws.saveFile(wsRel);
+    }
     return;
   }
   void ws.saveFile();
@@ -172,6 +201,22 @@ registerBuiltin('Alt+Z', () => useUiStore.getState().toggleWordWrap());
 registerBuiltin('Cmd+=', () => useUiStore.getState().zoomEditor(1));
 registerBuiltin('Cmd+-', () => useUiStore.getState().zoomEditor(-1));
 registerBuiltin('Cmd+0', () => useUiStore.getState().zoomEditor(0));
+registerBuiltin(
+  'Cmd+Shift+V',
+  () => {
+    const active = useWorkspaceStore.getState().activePath;
+    if (active) useUiStore.getState().toggleMarkdownReadMode(active);
+  },
+  canToggleMarkdownView,
+);
+registerBuiltin(
+  'Cmd+Alt+V',
+  () => {
+    const active = useWorkspaceStore.getState().activePath;
+    if (active) useUiStore.getState().toggleMarkdownSplitMode(active);
+  },
+  canToggleMarkdownView,
+);
 registerBuiltin('Cmd+,', () => useUiStore.getState().setModal('settings'));
 registerBuiltin('Cmd+Shift+X', () => useUiStore.getState().setModal('extensions'));
 
@@ -190,7 +235,7 @@ export function useGlobalShortcuts() {
       }
       if (!(e.metaKey || e.ctrlKey || e.altKey)) return;
       for (const item of BUILTIN) {
-        if (matchShortcut(e, item.spec)) {
+        if (matchShortcut(e, item.spec) && (!item.when || item.when())) {
           e.preventDefault();
           e.stopPropagation();
           item.run();

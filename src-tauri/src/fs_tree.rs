@@ -34,6 +34,15 @@ pub struct FsFileContent {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct FsAssetDataUrl {
+    pub path: String,
+    pub mime_type: String,
+    pub data_url: String,
+    pub size: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FsChangedEvent {
     pub root: String,
     pub paths: Vec<String>,
@@ -582,6 +591,83 @@ pub async fn fs_reveal_in_finder(path: String) -> Result<(), String> {
     }
 }
 
+const MAX_ASSET_BYTES: u64 = 16 * 1024 * 1024;
+const BASE64_TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+fn encode_base64(input: &[u8]) -> String {
+    if input.is_empty() {
+        return String::new();
+    }
+    let mut out = String::with_capacity(input.len().div_ceil(3) * 4);
+    for chunk in input.chunks(3) {
+        let b0 = chunk[0] as usize;
+        let b1 = if chunk.len() > 1 { chunk[1] as usize } else { 0 };
+        let b2 = if chunk.len() > 2 { chunk[2] as usize } else { 0 };
+        let triple = (b0 << 16) | (b1 << 8) | b2;
+
+        out.push(BASE64_TABLE[(triple >> 18) & 0x3f] as char);
+        out.push(BASE64_TABLE[(triple >> 12) & 0x3f] as char);
+        out.push(if chunk.len() > 1 {
+            BASE64_TABLE[(triple >> 6) & 0x3f] as char
+        } else {
+            '='
+        });
+        out.push(if chunk.len() > 2 {
+            BASE64_TABLE[triple & 0x3f] as char
+        } else {
+            '='
+        });
+    }
+    out
+}
+
+fn image_mime_for_path(path: &Path) -> Option<&'static str> {
+    let ext = path.extension()?.to_str()?.to_ascii_lowercase();
+    match ext.as_str() {
+        "png" => Some("image/png"),
+        "jpg" | "jpeg" => Some("image/jpeg"),
+        "gif" => Some("image/gif"),
+        "webp" => Some("image/webp"),
+        "svg" => Some("image/svg+xml"),
+        "bmp" => Some("image/bmp"),
+        "ico" => Some("image/x-icon"),
+        "avif" => Some("image/avif"),
+        _ => None,
+    }
+}
+
+fn read_asset_data_url_sync(path: &Path) -> Result<FsAssetDataUrl, String> {
+    let mime = image_mime_for_path(path)
+        .ok_or_else(|| format!("不支持的图片资源类型: {}", path.display()))?;
+    let meta = fs::metadata(path)
+        .map_err(|e| format!("读取资源元信息失败 {}: {}", path.display(), e))?;
+    if !meta.is_file() {
+        return Err(format!("资源路径不是文件: {}", path.display()));
+    }
+    if meta.len() > MAX_ASSET_BYTES {
+        return Err(format!(
+            "图片资源超过 16 MB 上限 ({} 字节): {}",
+            meta.len(),
+            path.display()
+        ));
+    }
+    let bytes = fs::read(path).map_err(|e| format!("读取资源失败 {}: {}", path.display(), e))?;
+    let data_url = format!("data:{};base64,{}", mime, encode_base64(&bytes));
+    Ok(FsAssetDataUrl {
+        path: path.to_string_lossy().into_owned(),
+        mime_type: mime.to_string(),
+        data_url,
+        size: bytes.len() as u64,
+    })
+}
+
+#[tauri::command]
+pub async fn fs_read_asset_data_url(path: String) -> Result<FsAssetDataUrl, String> {
+    tokio::task::spawn_blocking(move || read_asset_data_url_sync(Path::new(&path)))
+        .await
+        .map_err(|e| format!("读取资源任务异常: {}", e))?
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -685,5 +771,50 @@ mod tests {
         assert!(should_ignore_watch_path(Path::new(".turbo/cache")));
         assert!(should_ignore_watch_path(Path::new("Cargo.lock")));
         assert!(!should_ignore_watch_path(Path::new("src/App.tsx")));
+    }
+
+    #[test]
+    fn test_encode_base64_vectors() {
+        assert_eq!(encode_base64(b""), "");
+        assert_eq!(encode_base64(b"f"), "Zg==");
+        assert_eq!(encode_base64(b"fo"), "Zm8=");
+        assert_eq!(encode_base64(b"foo"), "Zm9v");
+        assert_eq!(encode_base64(b"foob"), "Zm9vYg==");
+        assert_eq!(encode_base64(b"fooba"), "Zm9vYmE=");
+        assert_eq!(encode_base64(b"foobar"), "Zm9vYmFy");
+        assert_eq!(encode_base64(&[0u8, 255u8, 128u8]), "AP+A");
+    }
+
+    #[test]
+    fn test_read_asset_data_url_sync() {
+        let tmp = std::env::temp_dir().join(format!(
+            "ke_fs_asset_test_{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&tmp).unwrap();
+
+        let png_path = tmp.join("pixel.png");
+        let bytes = [137u8, 80, 78, 71, 13, 10, 26, 10];
+        fs::write(&png_path, bytes).unwrap();
+        let asset = read_asset_data_url_sync(&png_path).unwrap();
+        assert_eq!(asset.mime_type, "image/png");
+        assert_eq!(asset.size, bytes.len() as u64);
+        assert!(asset.data_url.starts_with("data:image/png;base64,"));
+        assert_eq!(
+            asset.data_url,
+            format!("data:image/png;base64,{}", encode_base64(&bytes))
+        );
+
+        let txt_path = tmp.join("note.txt");
+        fs::write(&txt_path, b"hello").unwrap();
+        assert!(read_asset_data_url_sync(&txt_path).is_err());
+
+        let missing_path = tmp.join("missing.png");
+        assert!(read_asset_data_url_sync(&missing_path).is_err());
+
+        let _ = fs::remove_dir_all(&tmp);
     }
 }

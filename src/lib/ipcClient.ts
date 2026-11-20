@@ -3,6 +3,7 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import {
   IPC_EVENTS,
   type AppContextInfo,
+  type FsAssetDataUrl,
   type FsChangedEvent,
   type FsFileContent,
   type FsTreeNode,
@@ -170,6 +171,54 @@ export async function runSmokeTest() {
       null,
       2,
     ),
+  ],
+  [
+    `${MOCK_ROOT}/README.md`,
+    `# kt-payment-core
+
+幂等退款核心服务模块与 API 接口示例工程。
+
+> [!NOTE]
+> 本文件用于演示 Klot IDE 的 Markdown 阅读模式、实时分屏预览、大纲导航与任务清单交互。
+
+## 模块结构
+
+- 核心逻辑入口：[refund.service.ts](./src/core/refund.service.ts)
+- 幂等存储抽象：[idempotency.ts](./src/core/idempotency.ts)
+- API 路由处理：[refund.routes.ts](./src/api/refund.routes.ts)
+
+## 核心流程示例
+
+\`\`\`ts
+import { IdempotencyStore } from './src/core/idempotency';
+import { processRefund } from './src/core/refund.service';
+
+const store = new IdempotencyStore();
+const receipt = await processRefund(
+  {
+    orderId: 'ord_1001',
+    amountCents: 1200,
+    reason: 'customer_request',
+    idempotencyKey: 'key_01',
+  },
+  store,
+);
+\`\`\`
+
+## 参数与状态说明
+
+| 字段名 | 类型 | 必填 | 说明 |
+| --- | --- | :---: | --- |
+| \`orderId\` | \`string\` | 是 | 原始订单号 |
+| \`amountCents\` | \`number\` | 是 | 退款金额（分），必须大于 0 |
+| \`idempotencyKey\` | \`string\` | 是 | 幂等键，重复请求返回 \`duplicate\` |
+
+## 上线检查清单
+
+- [x] 校验 \`amountCents > 0\`
+- [x] 实现内存幂等键存储
+- [ ] 接入分布式 Redis 锁与告警监控
+`,
   ],
 ]);
 
@@ -474,6 +523,13 @@ export async function fsRevealInFinder(path: string): Promise<void> {
     return;
   }
   return invoke<void>('fs_reveal_in_finder', { path });
+}
+
+export async function fsReadAssetDataUrl(path: string): Promise<FsAssetDataUrl | null> {
+  if (!isTauriRuntime()) {
+    return null;
+  }
+  return invoke<FsAssetDataUrl>('fs_read_asset_data_url', { path });
 }
 
 // ==================== 全库搜索 (search.rs) ====================

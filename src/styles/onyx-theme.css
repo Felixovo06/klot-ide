@@ -1411,15 +1411,32 @@ body[data-resizing] .xterm {
 
 /* ==================== 中间主卡 ==================== */
 
-.onyx-tabs {
+.onyx-tabs-bar {
   height: 36px;
   flex: none;
   display: flex;
   align-items: stretch;
+  min-width: 0;
+  border-bottom: 1px solid var(--ag-border-default);
+}
+
+.onyx-tabs {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
   overflow-x: auto;
   overflow-y: hidden;
-  border-bottom: 1px solid var(--ag-border-default);
   scrollbar-width: none;
+}
+
+.onyx-tabs-actions {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px 0 8px;
+  border-left: 1px solid var(--ag-border-default);
 }
 
 .onyx-tabs::-webkit-scrollbar {
@@ -1453,7 +1470,7 @@ body[data-resizing] .xterm {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: -1px;
+  bottom: 0;
   height: 1.5px;
   background: var(--ag-accent-default);
 }
@@ -4085,4 +4102,706 @@ button.onyx-drawer-tab {
 [data-theme="dark"] .onyx-cli-cwd-select option {
   background: var(--ag-surface-card);
   color: var(--ag-content-primary);
+}
+
+/* ==================== Markdown 阅读模式与分屏舞台 ==================== */
+
+.onyx-editor-stage {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+.onyx-editor-pane {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.onyx-md-pane {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.onyx-md-split-handle {
+  background: transparent;
+}
+
+.onyx-md-split-handle::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3.5px;
+  width: 1px;
+  background: var(--ag-border-default);
+  pointer-events: none;
+}
+
+.onyx-md-reader {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  background: var(--ag-surface-canvas);
+  color: var(--ag-content-primary);
+}
+
+.onyx-md-scroll {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 28px 36px 56px;
+}
+
+.onyx-md-reader.is-split .onyx-md-scroll {
+  padding: 20px 24px 44px;
+}
+
+.onyx-md-empty {
+  height: 100%;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--ag-content-tertiary);
+  font-size: var(--ag-text-compact);
+}
+
+.onyx-md-article {
+  width: 100%;
+  max-width: 780px;
+  margin: 0 auto;
+  font-size: var(--onyx-md-font-size, 15px);
+  line-height: 1.72;
+  color: var(--ag-content-primary);
+  user-select: text;
+  -webkit-user-select: text;
+  word-wrap: break-word;
+}
+
+.onyx-md-reader.is-split .onyx-md-article {
+  max-width: none;
+}
+
+.onyx-md-article > *:first-child {
+  margin-top: 0;
+}
+
+.onyx-md-article h1,
+.onyx-md-article h2,
+.onyx-md-article h3,
+.onyx-md-article h4,
+.onyx-md-article h5,
+.onyx-md-article h6 {
+  color: var(--ag-content-primary);
+  font-weight: var(--ag-weight-semibold);
+  line-height: 1.32;
+  margin: 1.5em 0 0.6em;
+  scroll-margin-top: 16px;
+}
+
+.onyx-md-article h1 {
+  font-size: 1.78em;
+  padding-bottom: 0.32em;
+  border-bottom: 1px solid var(--ag-border-default);
+}
+
+.onyx-md-article h2 {
+  font-size: 1.4em;
+  padding-bottom: 0.25em;
+  border-bottom: 1px solid var(--ag-border-default);
+}
+
+.onyx-md-article h3 {
+  font-size: 1.18em;
+}
+
+.onyx-md-article h4 {
+  font-size: 1.04em;
+}
+
+.onyx-md-article h5 {
+  font-size: 0.94em;
+  color: var(--ag-content-secondary);
+}
+
+.onyx-md-article h6 {
+  font-size: 0.88em;
+  color: var(--ag-content-tertiary);
+}
+
+.onyx-md-article p {
+  margin: 0 0 0.95em;
+}
+
+.onyx-md-article a {
+  color: var(--ag-status-link);
+  text-decoration: none;
+}
+
+.onyx-md-article a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.onyx-md-article strong {
+  font-weight: var(--ag-weight-semibold);
+}
+
+.onyx-md-article del {
+  color: var(--ag-content-tertiary);
+}
+
+.onyx-md-article mark {
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--onyx-search-hit);
+  color: inherit;
+}
+
+.onyx-md-article hr {
+  border: none;
+  border-top: 1px solid var(--ag-border-default);
+  margin: 1.5em 0;
+}
+
+.onyx-md-article :not(pre) > code {
+  padding: 0.14em 0.42em;
+  border-radius: var(--ag-radius-sm);
+  background: var(--ag-surface-muted);
+  font-family: var(--onyx-font-mono);
+  font-size: 0.86em;
+  color: var(--ag-content-primary);
+}
+
+.onyx-md-kbd {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: var(--ag-radius-sm);
+  background: var(--ag-onyx-key);
+  border: 1px solid var(--ag-border-card);
+  box-shadow: var(--onyx-shadow-raised);
+  color: var(--ag-content-secondary);
+  font-family: var(--onyx-font-mono);
+  font-size: 0.8em;
+  line-height: 1.4;
+}
+
+/* 代码块 */
+
+.onyx-md-codeblock {
+  margin: 0 0 1.05em;
+  border-radius: var(--ag-radius-lg);
+  border: 1px solid var(--ag-border-card);
+  background: var(--ag-onyx-frame);
+  overflow: hidden;
+}
+
+.onyx-md-code-head {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px 0 12px;
+  border-bottom: 1px solid var(--ag-border-default);
+  font-size: var(--ag-text-xs);
+  color: var(--ag-content-tertiary);
+}
+
+.onyx-md-code-lang {
+  font-family: var(--onyx-font-mono);
+  text-transform: lowercase;
+}
+
+.onyx-md-code-copy {
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 7px;
+  border-radius: var(--ag-radius-sm);
+  color: var(--ag-content-tertiary);
+  font-size: var(--ag-text-xs);
+  transition: background-color var(--ag-duration-fast) var(--ag-ease-standard),
+    color var(--ag-duration-fast) var(--ag-ease-standard);
+}
+
+.onyx-md-code-copy:hover {
+  background: var(--onyx-hover);
+  color: var(--ag-content-primary);
+}
+
+.onyx-md-code-pre {
+  margin: 0;
+  padding: 12px 14px;
+  overflow-x: auto;
+  background: transparent;
+  font-family: var(--onyx-font-mono);
+  font-size: calc(var(--onyx-md-font-size, 15px) - 2px);
+  line-height: 1.6;
+  tab-size: 2;
+}
+
+.onyx-md-code-pre code {
+  padding: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: inherit;
+  white-space: pre;
+}
+
+/* 列表与任务清单 */
+
+.onyx-md-article ul,
+.onyx-md-article ol {
+  margin: 0 0 1em;
+  padding-left: 1.65em;
+}
+
+.onyx-md-article ul {
+  list-style: disc;
+}
+
+.onyx-md-article ol {
+  list-style: decimal;
+}
+
+.onyx-md-article li {
+  margin: 0.3em 0;
+}
+
+.onyx-md-article li > .onyx-md-li-body > p:last-child,
+.onyx-md-article li > .onyx-md-li-body > ul:last-child,
+.onyx-md-article li > .onyx-md-li-body > ol:last-child {
+  margin-bottom: 0;
+}
+
+.onyx-md-article ul.is-tight li > .onyx-md-li-body > p,
+.onyx-md-article ol.is-tight li > .onyx-md-li-body > p {
+  margin-bottom: 0.25em;
+}
+
+.onyx-md-task-item {
+  list-style: none;
+  position: relative;
+}
+
+.onyx-md-checkbox {
+  position: absolute;
+  left: -1.55em;
+  top: 0.34em;
+  width: 15px;
+  height: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--ag-radius-sm);
+  border: 1.25px solid var(--onyx-field-border-hover);
+  background: var(--onyx-field-bg);
+  color: var(--ag-accent-on-accent);
+  cursor: pointer;
+  transition: background-color var(--ag-duration-fast) var(--ag-ease-standard),
+    border-color var(--ag-duration-fast) var(--ag-ease-standard);
+}
+
+.onyx-md-checkbox:hover {
+  border-color: var(--ag-accent-default);
+}
+
+.onyx-md-checkbox.is-checked {
+  background: var(--ag-accent-default);
+  border-color: var(--ag-accent-default);
+}
+
+/* 引用与 GitHub Callouts */
+
+.onyx-md-article blockquote {
+  margin: 0 0 1em;
+  padding: 2px 0 2px 14px;
+  border-left: 2.5px solid var(--ag-border-card);
+  color: var(--ag-content-secondary);
+}
+
+.onyx-md-article blockquote > *:last-child {
+  margin-bottom: 0;
+}
+
+.onyx-md-callout {
+  margin: 0 0 1em;
+  padding: 10px 14px;
+  border-radius: var(--ag-radius-lg);
+  border: 1px solid var(--ag-border-card);
+  border-left-width: 3px;
+  background: var(--ag-surface-subtle);
+  color: var(--ag-content-primary);
+}
+
+.onyx-md-callout-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--ag-text-compact);
+  font-weight: var(--ag-weight-semibold);
+  margin-bottom: 5px;
+}
+
+.onyx-md-callout-body > *:last-child {
+  margin-bottom: 0;
+}
+
+.onyx-md-callout.is-note {
+  border-left-color: var(--ag-accent-default);
+}
+.onyx-md-callout.is-note .onyx-md-callout-title {
+  color: var(--ag-accent-default);
+}
+
+.onyx-md-callout.is-tip {
+  border-left-color: var(--ag-status-success);
+}
+.onyx-md-callout.is-tip .onyx-md-callout-title {
+  color: var(--ag-status-success);
+}
+
+.onyx-md-callout.is-important {
+  border-left-color: var(--ag-chart-4);
+}
+.onyx-md-callout.is-important .onyx-md-callout-title {
+  color: var(--ag-chart-4);
+}
+
+.onyx-md-callout.is-warning {
+  border-left-color: var(--ag-status-warning);
+}
+.onyx-md-callout.is-warning .onyx-md-callout-title {
+  color: var(--ag-status-warning);
+}
+
+.onyx-md-callout.is-caution {
+  border-left-color: var(--ag-status-error);
+}
+.onyx-md-callout.is-caution .onyx-md-callout-title {
+  color: var(--ag-status-error);
+}
+
+/* 表格 */
+
+.onyx-md-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  margin: 0 0 1.05em;
+  border: 1px solid var(--ag-border-card);
+  border-radius: var(--ag-radius-lg);
+}
+
+.onyx-md-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: calc(var(--onyx-md-font-size, 15px) - 1px);
+  line-height: 1.55;
+}
+
+.onyx-md-table th,
+.onyx-md-table td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--ag-border-default);
+  vertical-align: top;
+}
+
+.onyx-md-table th {
+  background: var(--ag-onyx-frame);
+  font-weight: var(--ag-weight-semibold);
+  color: var(--ag-content-secondary);
+}
+
+.onyx-md-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Frontmatter 与折叠块 */
+
+.onyx-md-frontmatter {
+  margin: 0 0 1.25em;
+  padding: 10px 14px;
+  border-radius: var(--ag-radius-lg);
+  border: 1px solid var(--ag-border-card);
+  background: var(--ag-onyx-frame);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  font-size: var(--ag-text-sm);
+}
+
+.onyx-md-fm-row {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.onyx-md-fm-key {
+  color: var(--ag-content-tertiary);
+  font-family: var(--onyx-font-mono);
+  font-size: var(--ag-text-xs);
+}
+
+.onyx-md-fm-val {
+  color: var(--ag-content-primary);
+}
+
+.onyx-md-html-box > *:last-child {
+  margin-bottom: 0;
+}
+
+.onyx-md-details {
+  margin: 0 0 1em;
+  border: 1px solid var(--ag-border-card);
+  border-radius: var(--ag-radius-lg);
+  background: var(--ag-surface-subtle);
+  padding: 8px 12px;
+}
+
+.onyx-md-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  list-style: none;
+  cursor: pointer;
+  font-weight: var(--ag-weight-medium);
+  color: var(--ag-content-primary);
+}
+
+.onyx-md-summary::-webkit-details-marker {
+  display: none;
+}
+
+.onyx-md-summary-chevron {
+  flex: none;
+  color: var(--ag-content-tertiary);
+  transition: transform var(--ag-duration-fast) var(--ag-ease-standard);
+}
+
+.onyx-md-details[open] .onyx-md-summary-chevron {
+  transform: rotate(90deg);
+}
+
+.onyx-md-details-body {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--ag-border-default);
+}
+
+.onyx-md-details-body > *:last-child {
+  margin-bottom: 0;
+}
+
+/* 图片与 Lightbox */
+
+.onyx-md-inline-img {
+  display: inline-block;
+  vertical-align: middle;
+  max-width: 100%;
+  height: auto;
+  margin: 2px 3px;
+  border-radius: var(--ag-radius-sm);
+  cursor: zoom-in;
+}
+
+.onyx-md-article a .onyx-md-inline-img {
+  cursor: pointer;
+}
+
+.onyx-md-img-block {
+  margin: 0 0 1em;
+}
+
+.onyx-md-block-img {
+  display: inline-block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--ag-radius-lg);
+  border: 1px solid var(--ag-border-default);
+  cursor: zoom-in;
+}
+
+.onyx-md-img-fallback {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--ag-radius-md);
+  border: 1px dashed var(--ag-border-card);
+  background: var(--ag-surface-subtle);
+  color: var(--ag-content-tertiary);
+  font-size: var(--ag-text-sm);
+}
+
+.onyx-md-img-fallback.is-block {
+  padding: 10px 14px;
+}
+
+.onyx-md-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: var(--ag-overlay-scrim);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 36px;
+  animation: onyx-pop var(--ag-duration-fast) var(--ag-ease-expo-out);
+}
+
+.onyx-md-lightbox-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--ag-radius-full);
+  background: var(--ag-onyx-raised);
+  border: 1px solid var(--ag-border-card);
+  box-shadow: var(--onyx-shadow-raised);
+  color: var(--ag-content-primary);
+}
+
+.onyx-md-lightbox-img {
+  max-width: 90vw;
+  max-height: 82vh;
+  border-radius: var(--ag-radius-lg);
+  box-shadow: var(--onyx-shadow-pop);
+  background: var(--ag-surface-card);
+}
+
+.onyx-md-lightbox-caption {
+  padding: 4px 12px;
+  border-radius: var(--ag-radius-full);
+  background: var(--ag-onyx-raised);
+  border: 1px solid var(--ag-border-card);
+  color: var(--ag-content-secondary);
+  font-size: var(--ag-text-sm);
+}
+
+/* 脚注 */
+
+.onyx-md-footnotes {
+  margin-top: 2em;
+  font-size: var(--ag-text-compact);
+  color: var(--ag-content-secondary);
+}
+
+.onyx-md-fn-ref a {
+  padding: 0 2px;
+  font-family: var(--onyx-font-mono);
+  font-size: 0.78em;
+}
+
+/* 右侧大纲目录 */
+
+.onyx-md-outline {
+  width: 216px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--ag-border-default);
+  background: var(--ag-surface-canvas);
+  padding: 14px 10px 18px;
+  overflow: hidden;
+}
+
+.onyx-md-outline-title {
+  padding: 0 10px 8px;
+  font-size: var(--ag-text-xs);
+  font-weight: var(--ag-weight-semibold);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ag-content-tertiary);
+}
+
+.onyx-md-outline-list {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.onyx-md-outline-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 26px;
+  padding-right: 8px;
+  border-radius: var(--ag-radius-sm);
+  color: var(--ag-content-tertiary);
+  font-size: var(--ag-text-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--ag-duration-fast) var(--ag-ease-standard),
+    color var(--ag-duration-fast) var(--ag-ease-standard);
+}
+
+.onyx-md-outline-item:hover {
+  background: var(--onyx-hover);
+  color: var(--ag-content-primary);
+}
+
+.onyx-md-outline-item.is-active {
+  color: var(--ag-content-primary);
+  font-weight: var(--ag-weight-medium);
+  background: var(--onyx-selected-row);
+}
+
+.onyx-md-outline-item.is-active::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 5px;
+  bottom: 5px;
+  width: 2px;
+  border-radius: 9999px;
+  background: var(--ag-accent-default);
+}
+
+.onyx-md-outline-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 锚点或行定位脉冲高亮 */
+
+.is-flash {
+  animation: onyx-md-flash 1.3s var(--ag-ease-standard);
+}
+
+@keyframes onyx-md-flash {
+  0% {
+    background: color-mix(in srgb, var(--ag-accent-default) 16%, transparent);
+    border-radius: var(--ag-radius-sm);
+  }
+  100% {
+    background: transparent;
+  }
 }

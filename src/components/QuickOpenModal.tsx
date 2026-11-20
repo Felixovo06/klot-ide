@@ -6,9 +6,11 @@ import {
   ArchiveRestore,
   ArrowDown,
   ArrowUp,
+  BookOpen,
   Box,
   Braces,
   Code,
+  Columns2,
   File,
   FilePlus,
   Folder,
@@ -18,6 +20,7 @@ import {
   GitBranch,
   Hash,
   Keyboard,
+  ListTree,
   PanelBottom,
   PanelLeft,
   PanelRight,
@@ -38,8 +41,8 @@ import { useCliStore } from '../stores/cliStore';
 import { useGitStore } from '../stores/gitStore';
 import { usePluginStore } from '../stores/pluginStore';
 import { useRunStore } from '../stores/runStore';
-import { useUiStore } from '../stores/uiStore';
-import { abbreviateHome, basename, dirname, joinPath } from '../stores/utils';
+import { toast, useUiStore } from '../stores/uiStore';
+import { abbreviateHome, basename, dirname, isMarkdownPath, joinPath } from '../stores/utils';
 import { flattenFiles, normalizeWorkspacePath, useWorkspaceStore } from '../stores/workspaceStore';
 import { symbolsForModel } from './CodeEditor';
 import { fuzzyMatch } from './fuzzy';
@@ -68,6 +71,7 @@ const SYMBOL_ICONS: Record<SymbolKind, LucideIcon> = {
   variable: Code,
   struct: Box,
   module: Box,
+  heading: Hash,
 };
 
 function Highlighted({ text, positions }: { text: string; positions?: number[] }) {
@@ -163,6 +167,70 @@ function buildCommands(close: () => void): QuickItem[] {
       label: 'View: Toggle Word Wrap',
       hint: 'Alt+Z',
       run: wrap(() => ui.toggleWordWrap()),
+    },
+    {
+      key: 'md-toggle-read',
+      icon: BookOpen,
+      label: 'Markdown: Toggle Reading Mode',
+      hint: 'Cmd+Shift+V',
+      run: wrap(() => {
+        const active = useWorkspaceStore.getState().activePath;
+        if (!isMarkdownPath(active)) {
+          toast('info', '请先打开一个 Markdown 文件');
+          return;
+        }
+        ui.setMode('code');
+        ui.toggleMarkdownReadMode(active!);
+      }),
+    },
+    {
+      key: 'md-read',
+      icon: BookOpen,
+      label: 'Markdown: Reading Mode',
+      run: wrap(() => {
+        const active = useWorkspaceStore.getState().activePath;
+        if (!isMarkdownPath(active)) {
+          toast('info', '请先打开一个 Markdown 文件');
+          return;
+        }
+        ui.setMode('code');
+        ui.setMarkdownView(active!, 'read');
+      }),
+    },
+    {
+      key: 'md-split',
+      icon: Columns2,
+      label: 'Markdown: Split Preview',
+      hint: 'Cmd+Alt+V',
+      run: wrap(() => {
+        const active = useWorkspaceStore.getState().activePath;
+        if (!isMarkdownPath(active)) {
+          toast('info', '请先打开一个 Markdown 文件');
+          return;
+        }
+        ui.setMode('code');
+        ui.toggleMarkdownSplitMode(active!);
+      }),
+    },
+    {
+      key: 'md-edit',
+      icon: Code,
+      label: 'Markdown: Source Editor',
+      run: wrap(() => {
+        const active = useWorkspaceStore.getState().activePath;
+        if (!isMarkdownPath(active)) {
+          toast('info', '请先打开一个 Markdown 文件');
+          return;
+        }
+        ui.setMode('code');
+        ui.setMarkdownView(active!, 'edit');
+      }),
+    },
+    {
+      key: 'md-outline',
+      icon: ListTree,
+      label: 'Markdown: Toggle Outline',
+      run: wrap(() => ui.toggleMarkdownOutline()),
     },
     { key: 'run', icon: Play, label: 'Task: Run Selected Task', run: wrap(() => void run.start()) },
     { key: 'stop', icon: Square, label: 'Task: Stop', run: wrap(() => void run.stop()) },
@@ -290,7 +358,7 @@ export function QuickOpenModal() {
         icon: SYMBOL_ICONS[s.kind],
         label: s.name,
         positions: m!.positions,
-        detail: s.kind,
+        detail: s.kind === 'heading' ? `H${s.indent + 1}` : s.kind,
         hint: `L${s.line}`,
         run: () => openAt(activePath, s.line),
       }));

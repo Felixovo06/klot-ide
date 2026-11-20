@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AtSign,
+  BookOpen,
   ChevronDown,
   ChevronRight,
   Copy,
@@ -21,7 +22,7 @@ import type { FsTreeNode, GitFileStatusCode } from '../types/ipc';
 import { useCliStore } from '../stores/cliStore';
 import { joinRepoRel, useGitStore } from '../stores/gitStore';
 import { useUiStore } from '../stores/uiStore';
-import { dirname, joinPath } from '../stores/utils';
+import { dirname, isMarkdownPath, joinPath } from '../stores/utils';
 import { useWorkspaceStore } from '../stores/workspaceStore';
 import { ContextMenu, type ContextMenuEntry, copyToClipboard, GitStatusLetter, ICON_STROKE } from './ui';
 
@@ -223,7 +224,24 @@ export function FileTree() {
     const fullTarget = node ? node.fullPath : root;
     const termCwd = node ? (node.isDir ? node.fullPath : joinPath(root, dirname(node.path))) : root;
 
-    const items: ContextMenuEntry[] = [
+    const items: ContextMenuEntry[] = [];
+
+    if (node && !node.isDir && isMarkdownPath(node.path)) {
+      items.push(
+        {
+          key: 'open-md-read',
+          label: '在阅读模式中打开',
+          icon: BookOpen,
+          onSelect: () => {
+            useUiStore.getState().setMode('code');
+            void openFile(node.path, { markdownView: 'read' });
+          },
+        },
+        { kind: 'divider', key: 'div-md-read' },
+      );
+    }
+
+    items.push(
       {
         key: 'new-file',
         label: '新建文件...',
@@ -236,7 +254,7 @@ export function FileTree() {
         icon: FolderPlus,
         onSelect: () => startTreeCreate('dir', targetDir),
       },
-    ];
+    );
 
     if (node) {
       items.push(
@@ -328,7 +346,7 @@ export function FileTree() {
       },
     );
     return items;
-  }, [ctxMenu, root, startTreeCreate, deleteEntry, selectRepo, switchWorkspace]);
+  }, [ctxMenu, root, openFile, startTreeCreate, deleteEntry, selectRepo, switchWorkspace]);
 
   if (!treeLoaded) return <div className="onyx-empty-hint">Loading...</div>;
 

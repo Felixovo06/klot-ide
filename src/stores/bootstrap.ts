@@ -12,13 +12,14 @@ import {
   setMonacoHooks,
   setMonacoWorkspaceRoot,
 } from '../components/monacoSetup';
+import { invalidateAssetPaths } from '../components/markdownAssets';
 import { setTerminalLinkHandler } from '../components/terminalRegistry';
 import { useCliStore } from './cliStore';
 import { useGitStore } from './gitStore';
 import { usePluginStore } from './pluginStore';
 import { useRunStore } from './runStore';
 import { toast, useUiStore } from './uiStore';
-import { debounce, errorMessage, normalizeSlashes, trimTrailingSlash } from './utils';
+import { debounce, errorMessage, joinPath, normalizeSlashes, trimTrailingSlash } from './utils';
 import {
   normalizeWorkspacePath,
   readLastWorkspace,
@@ -140,6 +141,9 @@ export async function bootstrapApp() {
     syncGitSilently();
     const workPaths = paths.filter((p) => !isGitInternalPath(p));
     if (paths.length > 0 && workPaths.length === 0) return;
+    if (workPaths.length > 0 && currentRoot) {
+      invalidateAssetPaths(workPaths.map((p) => joinPath(currentRoot, p)));
+    }
     const state = useWorkspaceStore.getState();
     void state.refreshTree();
     void state.reloadFromDisk(workPaths.length > 0 ? workPaths : undefined);

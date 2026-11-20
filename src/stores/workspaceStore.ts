@@ -29,16 +29,19 @@ import { fileSavedEvent } from './events';
 import { useGitStore } from './gitStore';
 import { usePluginStore } from './pluginStore';
 import { useRunStore } from './runStore';
-import { toast, useUiStore } from './uiStore';
+import { type MarkdownViewMode, toast, useUiStore } from './uiStore';
 import {
   dirname,
   errorMessage,
+  isMarkdownPath,
   joinPath,
   languageForPath,
   normalizeSlashes,
   toRelPath,
   trimTrailingSlash,
 } from './utils';
+import { clearAssetCache } from '../components/markdownAssets';
+import { clearMarkdownScrollCache } from '../components/MarkdownPreview';
 
 export interface OpenFile {
   path: string; // 相对工作区路径
@@ -49,10 +52,11 @@ export interface OpenFile {
 
 export interface RevealRequest {
   path: string;
-  line: number;
+  line?: number;
   endLine?: number;
   column?: number;
   endColumn?: number;
+  anchor?: string;
   nonce: number;
 }
 
@@ -68,6 +72,8 @@ export interface OpenFileOptions {
   column?: number;
   endColumn?: number;
   activate?: boolean;
+  markdownView?: MarkdownViewMode;
+  anchor?: string;
 }
 
 export interface TreeDraft {
@@ -344,10 +350,13 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
       treeLoaded: false,
     });
 
-    // 停止旧任务、结束旧 CLI PTY 会话、清空 Git 缓存
+    // 停止旧任务、结束旧 CLI PTY 会话、清空 Git 缓存与 Markdown 视图/资源缓存
     await useRunStore.getState().resetForWorkspace();
     useCliStore.getState().resetForWorkspace();
     useGitStore.getState().resetForWorkspace();
+    useUiStore.getState().resetMarkdownViews();
+    clearAssetCache();
+    clearMarkdownScrollCache();
 
     const nextRepoName = repoNameOf(target);
     const nextRecent = mergeRecent(get().recentWorkspaces, target);
@@ -470,7 +479,7 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
     }));
     await get().refreshTree();
     void useGitStore.getState().refresh({ silent: true });
-    if (!isDir) await get().openFile(rel);
+    if (!isDir) await get().openFile(rel, isMarkdownPath(rel) ? { markdownView: 'edit' } : undefined);
     return true;
   },
 
@@ -519,6 +528,7 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
       expanded: nextExpanded,
       recentlyClosed: recentlyClosed.map((p) => remapPathPrefix(p, oldRel, newRel)),
     });
+    useUiStore.getState().remapMarkdownViews(oldRel, newRel);
     await get().refreshTree();
     void useGitStore.getState().refresh({ silent: true });
     return true;
@@ -540,6 +550,9 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
     for (const f of affected) {
       clearAutoSaveTimer(f.fullPath);
       disposeFileModel(f.fullPath);
+    }
+    if (affected.length > 0) {
+      useUiStore.getState().clearMarkdownViews(affected.map((f) => f.path));
     }
     const nextOpen = openFiles.filter((f) => f.path !== rel && !f.path.startsWith(`${rel}/`));
     let nextActive = activePath;
@@ -590,17 +603,23 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
       }
     }
 
+    if (opts.markdownView) {
+      useUiStore.getState().setMarkdownView(rel, opts.markdownView);
+    }
+
     if (opts.activate !== false) {
       revealNonce += 1;
+      const hasReveal = Boolean(opts.line || opts.anchor);
       set({
         activePath: rel,
-        reveal: opts.line
+        reveal: hasReveal
           ? {
               path: rel,
               line: opts.line,
               endLine: opts.endLine,
               column: opts.column,
               endColumn: opts.endColumn,
+              anchor: opts.anchor,
               nonce: revealNonce,
             }
           : null,
@@ -626,6 +645,7 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
     clearAutoSaveTimer(file.fullPath);
     const closed = [...recentlyClosed.filter((p) => p !== path), path].slice(-MAX_RECENTLY_CLOSED);
     set({ openFiles: next, activePath: nextActive, recentlyClosed: closed, reveal: null });
+    useUiStore.getState().clearMarkdownViews([path]);
     disposeFileModel(file.fullPath);
   },
 
@@ -649,6 +669,7 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
       recentlyClosed: closed.slice(-MAX_RECENTLY_CLOSED),
       reveal: null,
     });
+    useUiStore.getState().clearMarkdownViews(targets.map((f) => f.path));
   },
 
   closeFilesToRight: (path) => {
@@ -674,6 +695,7 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
       recentlyClosed: closed.slice(-MAX_RECENTLY_CLOSED),
       reveal: null,
     });
+    useUiStore.getState().clearMarkdownViews(targets.map((f) => f.path));
   },
 
   closeSavedFiles: () => {
@@ -696,6 +718,7 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
       recentlyClosed: closed.slice(-MAX_RECENTLY_CLOSED),
       reveal: null,
     });
+    useUiStore.getState().clearMarkdownViews(targets.map((f) => f.path));
   },
 
   closeAllFiles: () => {
@@ -717,6 +740,7 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
       recentlyClosed: closed.slice(-MAX_RECENTLY_CLOSED),
       reveal: null,
     });
+    useUiStore.getState().resetMarkdownViews();
   },
 
   reopenClosedFile: async () => {

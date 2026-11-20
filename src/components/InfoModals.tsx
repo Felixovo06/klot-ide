@@ -3,7 +3,7 @@ import { Minus, Plus, RefreshCw, X } from 'lucide-react';
 import { lspStatus } from '../lib/ipcClient';
 import type { LspServerStatus } from '../types/ipc';
 import { usePluginStore } from '../stores/pluginStore';
-import { useUiStore } from '../stores/uiStore';
+import { type MarkdownViewMode, useUiStore } from '../stores/uiStore';
 import { useWorkspaceStore } from '../stores/workspaceStore';
 import { BUILTIN_SHORTCUTS, formatShortcut } from './shortcuts';
 import { ICON_STROKE, Kbd, Segmented } from './ui';
@@ -156,6 +156,19 @@ function SettingsModal() {
           options={[
             { value: '2', label: '2 spaces' },
             { value: '4', label: '4 spaces' },
+          ]}
+        />
+      </div>
+      <div className="onyx-setting-row">
+        <span className="onyx-setting-label">Markdown Default View</span>
+        <Segmented<MarkdownViewMode>
+          size="sm"
+          value={prefs.markdownDefaultView}
+          onChange={(v) => setPref('markdownDefaultView', v)}
+          options={[
+            { value: 'edit', label: 'Edit' },
+            { value: 'split', label: 'Split' },
+            { value: 'read', label: 'Read' },
           ]}
         />
       </div>

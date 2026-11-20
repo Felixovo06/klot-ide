@@ -6,6 +6,7 @@ export type WorkMode = 'code' | 'git';
 export type LeftTab = 'files' | 'search';
 export type ModalKind = 'extensions' | 'settings' | 'shortcuts' | null;
 export type ToastTone = 'info' | 'success' | 'warning' | 'error';
+export type MarkdownViewMode = 'edit' | 'split' | 'read';
 
 export interface EditorPrefs {
   editorFontSize: number; // 12..18, default 13
@@ -14,6 +15,7 @@ export interface EditorPrefs {
   autoSave: boolean; // default false
   trimTrailingWhitespace: boolean; // default false
   terminalFontSize: number; // 11..16, default 12.5
+  markdownDefaultView: MarkdownViewMode; // default 'edit'
 }
 
 export interface ToastItem {
@@ -38,10 +40,23 @@ interface UiState {
   cliWidth: number;
   consoleHeight: number;
   prefs: EditorPrefs;
+  markdownViews: Record<string, MarkdownViewMode>;
+  markdownOutlineVisible: boolean;
+  markdownSplitRatio: number;
 
   setPref: <K extends keyof EditorPrefs>(key: K, value: EditorPrefs[K]) => void;
   toggleWordWrap: () => void;
   zoomEditor: (delta: -1 | 1 | 0) => void;
+  getMarkdownView: (path: string | null) => MarkdownViewMode;
+  setMarkdownView: (path: string, view: MarkdownViewMode) => void;
+  toggleMarkdownReadMode: (path: string) => void;
+  toggleMarkdownSplitMode: (path: string) => void;
+  clearMarkdownViews: (paths: string[]) => void;
+  remapMarkdownViews: (oldPrefix: string, newPrefix: string) => void;
+  resetMarkdownViews: () => void;
+  toggleMarkdownOutline: () => void;
+  setMarkdownSplitRatio: (ratio: number) => void;
+  resetMarkdownSplitRatio: () => void;
   setLeftWidth: (v: number) => void;
   setCliWidth: (v: number) => void;
   setConsoleHeight: (v: number) => void;
@@ -138,6 +153,9 @@ function persistLayout(snapshot: LayoutSnapshot) {
 const initialLayout = readInitialLayout();
 
 const PREFS_KEY = 'ke.prefs';
+const MD_OUTLINE_KEY = 'ke.mdOutline';
+const MD_SPLIT_RATIO_KEY = 'ke.mdSplitRatio';
+const DEFAULT_MD_SPLIT_RATIO = 0.5;
 
 export const DEFAULT_PREFS: EditorPrefs = {
   editorFontSize: 13,
@@ -146,7 +164,37 @@ export const DEFAULT_PREFS: EditorPrefs = {
   autoSave: false,
   trimTrailingWhitespace: false,
   terminalFontSize: 12.5,
+  markdownDefaultView: 'edit',
 };
+
+function normalizeMarkdownView(v: unknown): MarkdownViewMode {
+  return v === 'read' || v === 'split' ? v : 'edit';
+}
+
+function clampMarkdownSplitRatio(v: unknown): number {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return DEFAULT_MD_SPLIT_RATIO;
+  return Math.round(Math.min(0.75, Math.max(0.25, v)) * 1000) / 1000;
+}
+
+function readInitialMarkdownOutline(): boolean {
+  try {
+    const raw = localStorage.getItem(MD_OUTLINE_KEY);
+    if (raw === 'false') return false;
+  } catch {
+    // 忽略存储不可用
+  }
+  return true;
+}
+
+function readInitialMarkdownSplitRatio(): number {
+  try {
+    const raw = localStorage.getItem(MD_SPLIT_RATIO_KEY);
+    if (raw !== null) return clampMarkdownSplitRatio(Number(raw));
+  } catch {
+    // 忽略存储不可用
+  }
+  return DEFAULT_MD_SPLIT_RATIO;
+}
 
 function clampEditorFontSize(v: unknown): number {
   if (typeof v !== 'number' || !Number.isFinite(v)) return DEFAULT_PREFS.editorFontSize;
@@ -170,6 +218,7 @@ function readInitialPrefs(): EditorPrefs {
       out.autoSave = Boolean(p.autoSave);
       out.trimTrailingWhitespace = Boolean(p.trimTrailingWhitespace);
       out.terminalFontSize = clampTerminalFontSize(p.terminalFontSize);
+      out.markdownDefaultView = normalizeMarkdownView(p.markdownDefaultView);
     }
   } catch {
     // 忽略存储不可用或数据损坏
@@ -214,12 +263,16 @@ export const useUiStore = create<UiState>()((set, get) => {
     cliWidth: initialLayout.cliWidth,
     consoleHeight: initialLayout.consoleHeight,
     prefs: initialPrefs,
+    markdownViews: {},
+    markdownOutlineVisible: readInitialMarkdownOutline(),
+    markdownSplitRatio: readInitialMarkdownSplitRatio(),
 
     setPref: (key, value) => {
       const cur = get().prefs;
       let normalized = value;
       if (key === 'editorFontSize') normalized = clampEditorFontSize(value) as EditorPrefs[typeof key];
       else if (key === 'terminalFontSize') normalized = clampTerminalFontSize(value) as EditorPrefs[typeof key];
+      else if (key === 'markdownDefaultView') normalized = normalizeMarkdownView(value) as EditorPrefs[typeof key];
       if (cur[key] === normalized) return;
       const next = { ...cur, [key]: normalized };
       persistPrefs(next);
@@ -233,6 +286,82 @@ export const useUiStore = create<UiState>()((set, get) => {
       const size = delta === 0 ? DEFAULT_PREFS.editorFontSize : get().prefs.editorFontSize + delta;
       get().setPref('editorFontSize', size);
     },
+    getMarkdownView: (path) => {
+      if (!path) return 'edit';
+      return get().markdownViews[path] ?? get().prefs.markdownDefaultView;
+    },
+    setMarkdownView: (path, view) => {
+      if (!path) return;
+      const normalized = normalizeMarkdownView(view);
+      set((s) => {
+        if (s.markdownViews[path] === normalized) return s;
+        return { markdownViews: { ...s.markdownViews, [path]: normalized } };
+      });
+    },
+    toggleMarkdownReadMode: (path) => {
+      if (!path) return;
+      const cur = get().getMarkdownView(path);
+      get().setMarkdownView(path, cur === 'read' ? 'edit' : 'read');
+    },
+    toggleMarkdownSplitMode: (path) => {
+      if (!path) return;
+      const cur = get().getMarkdownView(path);
+      get().setMarkdownView(path, cur === 'split' ? 'edit' : 'split');
+    },
+    clearMarkdownViews: (paths) => {
+      if (paths.length === 0) return;
+      const drop = new Set(paths);
+      set((s) => {
+        let changed = false;
+        const next: Record<string, MarkdownViewMode> = {};
+        for (const [k, v] of Object.entries(s.markdownViews)) {
+          if (drop.has(k)) changed = true;
+          else next[k] = v;
+        }
+        return changed ? { markdownViews: next } : s;
+      });
+    },
+    remapMarkdownViews: (oldPrefix, newPrefix) => {
+      if (!oldPrefix || oldPrefix === newPrefix) return;
+      set((s) => {
+        let changed = false;
+        const next: Record<string, MarkdownViewMode> = {};
+        for (const [k, v] of Object.entries(s.markdownViews)) {
+          if (k === oldPrefix) {
+            next[newPrefix] = v;
+            changed = true;
+          } else if (k.startsWith(`${oldPrefix}/`)) {
+            next[`${newPrefix}${k.slice(oldPrefix.length)}`] = v;
+            changed = true;
+          } else {
+            next[k] = v;
+          }
+        }
+        return changed ? { markdownViews: next } : s;
+      });
+    },
+    resetMarkdownViews: () => set({ markdownViews: {} }),
+    toggleMarkdownOutline: () =>
+      set((s) => {
+        const next = !s.markdownOutlineVisible;
+        try {
+          localStorage.setItem(MD_OUTLINE_KEY, String(next));
+        } catch {
+          // 忽略存储不可用
+        }
+        return { markdownOutlineVisible: next };
+      }),
+    setMarkdownSplitRatio: (ratio) => {
+      const next = clampMarkdownSplitRatio(ratio);
+      if (get().markdownSplitRatio === next) return;
+      try {
+        localStorage.setItem(MD_SPLIT_RATIO_KEY, String(next));
+      } catch {
+        // 忽略存储不可用
+      }
+      set({ markdownSplitRatio: next });
+    },
+    resetMarkdownSplitRatio: () => get().setMarkdownSplitRatio(DEFAULT_MD_SPLIT_RATIO),
 
     setLeftWidth: (v) => setLayout('leftWidth', v),
     setCliWidth: (v) => setLayout('cliWidth', v),

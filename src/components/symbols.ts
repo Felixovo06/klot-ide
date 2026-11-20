@@ -8,7 +8,8 @@ export type SymbolKind =
   | 'enum'
   | 'variable'
   | 'struct'
-  | 'module';
+  | 'module'
+  | 'heading';
 
 export interface SymbolEntry {
   name: string;
@@ -62,7 +63,68 @@ const PATTERNS: Array<{ re: RegExp; kind: SymbolKind; topLevelOnly?: boolean }> 
   },
 ];
 
-export function scanSymbols(text: string): SymbolEntry[] {
+function stripHeadingInlineSyntax(raw: string): string {
+  return raw
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/`([^`]*)`/g, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/(^|\s)_([^_]+)_(\s|$)/g, '$1$2$3')
+    .replace(/~~([^~]+)~~/g, '$1')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\\([\\`*_{}[\]()#+\-.!|>])/g, '$1')
+    .trim();
+}
+
+function scanMarkdownHeadings(text: string): SymbolEntry[] {
+  const lines = text.replace(/\r\n/g, '\n').split('\n');
+  const out: SymbolEntry[] = [];
+  const limit = Math.min(lines.length, 20000);
+  let fenceChar = '';
+  let fenceLen = 0;
+
+  for (let i = 0; i < limit; i += 1) {
+    const line = lines[i];
+    if (!line || line.length > 600) continue;
+
+    if (fenceChar) {
+      const closeMatch = /^ {0,3}(`{3,}|~{3,})[ \t]*$/.exec(line);
+      if (closeMatch && closeMatch[1][0] === fenceChar && closeMatch[1].length >= fenceLen) {
+        fenceChar = '';
+        fenceLen = 0;
+      }
+      continue;
+    }
+
+    const openMatch = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+    if (openMatch) {
+      const marker = openMatch[1];
+      const rest = line.slice(openMatch[0].length);
+      if (marker[0] !== '`' || !rest.includes('`')) {
+        fenceChar = marker[0];
+        fenceLen = marker.length;
+        continue;
+      }
+    }
+
+    const headingMatch = /^ {0,3}(#{1,6})[ \t]+(.+?)(?:[ \t]+#+[ \t]*)?$/.exec(line);
+    if (headingMatch) {
+      const level = headingMatch[1].length;
+      const name = stripHeadingInlineSyntax(headingMatch[2]);
+      if (name) {
+        out.push({ name, kind: 'heading', line: i + 1, indent: level - 1 });
+      }
+    }
+  }
+  return out;
+}
+
+export function scanSymbols(text: string, language?: string): SymbolEntry[] {
+  if (language === 'markdown') {
+    return scanMarkdownHeadings(text);
+  }
   const lines = text.split('\n');
   const out: SymbolEntry[] = [];
   const limit = Math.min(lines.length, 20000);
@@ -90,6 +152,18 @@ export function enclosingSymbols(text: string, symbols: SymbolEntry[], cursorLin
   let minIndent = Number.POSITIVE_INFINITY;
   let symIdx = symbols.length - 1;
   while (symIdx >= 0 && symbols[symIdx].line > cursorLine) symIdx -= 1;
+  if (symIdx >= 0 && symbols[symIdx].kind === 'heading') {
+    for (let i = symIdx; i >= 0; i -= 1) {
+      const sym = symbols[i];
+      if (sym.kind !== 'heading') continue;
+      if (sym.indent < minIndent) {
+        chain.unshift(sym);
+        minIndent = sym.indent;
+        if (minIndent === 0) break;
+      }
+    }
+    return chain.map((s) => s.name);
+  }
   for (let ln = cursorLine; ln >= 1 && symIdx >= 0; ln -= 1) {
     const sym = symbols[symIdx];
     if (sym.line === ln) {
