@@ -91,8 +91,7 @@ enum CustomTasksFile {
     Wrapped { tasks: Vec<CustomTaskItem> },
 }
 
-pub fn discover_tasks_in_dir(root: &Path) -> Vec<TaskDefinition> {
-    let mut tasks = Vec::new();
+fn scan_single_dir_tasks(root: &Path, tasks: &mut Vec<TaskDefinition>) {
     let root_str = root.to_string_lossy().into_owned();
 
     // 1. package.json scripts
@@ -196,6 +195,36 @@ pub fn discover_tasks_in_dir(root: &Path) -> Vec<TaskDefinition> {
                         source: rel.to_string(),
                     });
                 }
+            }
+        }
+    }
+}
+
+pub fn discover_tasks_in_dir(root: &Path) -> Vec<TaskDefinition> {
+    let mut tasks = Vec::new();
+    let mut seen = HashSet::new();
+
+    scan_single_dir_tasks(root, &mut tasks);
+    for t in &tasks {
+        seen.insert((t.id.clone(), t.cwd.clone()));
+    }
+
+    for sub_rel in crate::fs_tree::discover_nested_git_repos(root) {
+        let sub_rel_str = sub_rel.to_string_lossy().replace('\\', "/");
+        let sub_root = root.join(&sub_rel);
+        let mut sub_tasks = Vec::new();
+        scan_single_dir_tasks(&sub_root, &mut sub_tasks);
+
+        for t in sub_tasks {
+            let id = format!("sub:{}:{}", sub_rel_str, t.id);
+            if seen.insert((id.clone(), t.cwd.clone())) {
+                tasks.push(TaskDefinition {
+                    id,
+                    name: format!("{}: {}", sub_rel_str, t.name),
+                    command: t.command,
+                    cwd: t.cwd,
+                    source: t.source,
+                });
             }
         }
     }

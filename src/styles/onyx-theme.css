@@ -818,6 +818,10 @@ body[data-resizing] .xterm {
 
 .onyx-branch-repo {
   font-weight: var(--ag-weight-medium);
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .onyx-branch-sep {
@@ -3887,4 +3891,198 @@ button.onyx-drawer-tab {
 .onyx-task-custom-row .onyx-input {
   flex: 1;
   min-width: 0;
+}
+
+/* ==================== 嵌套多 Git 仓库支持 ==================== */
+
+.onyx-tree-icon.is-repo {
+  color: var(--ag-accent-default);
+}
+
+.onyx-tree-repo-meta {
+  flex: none;
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.onyx-tree-repo-branch {
+  max-width: 68px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 5px;
+  height: 16px;
+  line-height: 16px;
+  border-radius: 4px;
+  background: var(--ag-onyx-well);
+  color: var(--ag-content-secondary);
+  font-family: var(--onyx-font-mono);
+  font-size: 10px;
+}
+
+.onyx-tree-repo-count {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--onyx-chip-bg);
+  color: var(--ag-accent-default);
+  font-family: var(--onyx-font-mono);
+  font-size: 10px;
+  font-weight: var(--ag-weight-semibold);
+}
+
+.onyx-repo-switcher {
+  flex: none;
+  padding: 8px 10px 0;
+}
+
+.onyx-repo-btn {
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: var(--ag-radius-md);
+  border: 1px solid var(--onyx-field-border);
+  background: var(--onyx-field-bg);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ag-content-primary);
+  font-size: var(--ag-text-xs);
+  transition: border-color var(--ag-duration-fast) var(--ag-ease-standard),
+    background-color var(--ag-duration-fast) var(--ag-ease-standard);
+}
+
+.onyx-repo-btn:hover,
+.onyx-repo-btn.is-open {
+  border-color: var(--onyx-field-border-hover);
+}
+
+.onyx-repo-icon {
+  flex: none;
+  color: var(--ag-accent-default);
+}
+
+.onyx-repo-btn-name {
+  flex: 1 1 auto;
+  min-width: 56px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  font-weight: var(--ag-weight-semibold);
+}
+
+.onyx-repo-btn-branch {
+  flex: 0 1 60px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ag-content-tertiary);
+  font-family: var(--onyx-font-mono);
+  font-size: 11px;
+}
+
+.onyx-repo-menu {
+  left: 10px;
+  right: 10px;
+  top: calc(100% + 4px);
+  width: auto;
+  min-width: 248px;
+  z-index: 60;
+}
+
+.onyx-repo-root-tag {
+  flex: none;
+  padding: 0 5px;
+  height: 15px;
+  line-height: 15px;
+  border-radius: 4px;
+  background: var(--ag-onyx-well);
+  color: var(--ag-content-secondary);
+  font-size: 10px;
+  font-weight: var(--ag-weight-medium);
+}
+
+.onyx-repo-badge {
+  flex: none;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--onyx-chip-bg);
+  color: var(--ag-accent-default);
+  font-family: var(--onyx-font-mono);
+  font-size: 10px;
+  font-weight: var(--ag-weight-semibold);
+}
+
+.onyx-repo-badge.is-zero {
+  background: var(--ag-onyx-well);
+  color: var(--ag-content-tertiary);
+  font-weight: var(--ag-weight-normal);
+}
+
+.onyx-menu-repo-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.onyx-cli-cwd-bar {
+  width: 100%;
+  max-width: 296px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  height: 32px;
+  border-radius: var(--ag-radius-md);
+  border: 1px solid var(--onyx-field-border);
+  background: var(--onyx-field-bg);
+  margin-bottom: 10px;
+  font-size: var(--ag-text-xs);
+}
+
+.onyx-cli-cwd-bar:hover,
+.onyx-cli-cwd-bar:focus-within {
+  border-color: var(--onyx-field-border-hover);
+}
+
+.onyx-cli-cwd-label {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ag-content-tertiary);
+  white-space: nowrap;
+}
+
+.onyx-cli-cwd-select {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--ag-content-primary);
+  font-family: var(--onyx-font-mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+[data-theme="dark"] .onyx-cli-cwd-select option {
+  background: var(--ag-surface-card);
+  color: var(--ag-content-primary);
 }

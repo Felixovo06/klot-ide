@@ -4,6 +4,7 @@ import {
   Check,
   ChevronDown,
   Folder,
+  FolderGit2,
   FolderOpen,
   GitBranch,
   Plus,
@@ -24,6 +25,10 @@ export function BranchPicker() {
   const promptOpenWorkspace = useWorkspaceStore((s) => s.promptOpenWorkspace);
   const promptOpenWorkspaceInNewWindow = useWorkspaceStore((s) => s.promptOpenWorkspaceInNewWindow);
   const status = useGitStore((s) => s.status);
+  const repos = useGitStore((s) => s.repos);
+  const activeRepoRoot = useGitStore((s) => s.activeRepoRoot);
+  const activeRepoRel = useGitStore((s) => s.activeRepoRel);
+  const selectRepo = useGitStore((s) => s.selectRepo);
   const branches = useGitStore((s) => s.branches);
   const refreshBranches = useGitStore((s) => s.refreshBranches);
   const checkout = useGitStore((s) => s.checkout);
@@ -40,7 +45,7 @@ export function BranchPicker() {
       setQuery('');
       if (isRepo) void refreshBranches();
     }
-  }, [open, isRepo, refreshBranches]);
+  }, [open, isRepo, activeRepoRoot, refreshBranches]);
 
   const branch = isRepo ? status.branch : '';
   const q = query.trim().toLowerCase();
@@ -64,16 +69,24 @@ export function BranchPicker() {
     await checkout(name, create);
   };
 
+  const pillRepoLabel = repos.length > 1 && activeRepoRel ? activeRepoRel : repoName || 'workspace';
+
   return (
     <div className="onyx-popover-anchor" ref={ref}>
       <button
         type="button"
         className={`onyx-branch-pill${open ? ' is-open' : ''}`}
         onClick={() => setOpen((v) => !v)}
-        title={isRepo ? '切换项目或分支' : '打开项目文件夹或切换最近项目'}
+        title={
+          repos.length > 1 && activeRepoRel
+            ? `${repoName || 'workspace'} / ${activeRepoRel}`
+            : isRepo
+              ? '切换项目、仓库或分支'
+              : '打开项目文件夹或切换最近项目'
+        }
       >
         {isRepo ? <GitBranch size={13} strokeWidth={ICON_STROKE} /> : <Folder size={13} strokeWidth={ICON_STROKE} />}
-        <span className="onyx-branch-repo">{repoName || 'workspace'}</span>
+        <span className="onyx-branch-repo">{pillRepoLabel}</span>
         {branch && (
           <>
             <span className="onyx-branch-sep">/</span>
@@ -138,6 +151,41 @@ export function BranchPicker() {
                         <span>{basename(p) || p}</span>
                         <span className="onyx-menu-sub">{abbreviateHome(p, homeDir)}</span>
                       </span>
+                      {isCurrent && <Check size={14} strokeWidth={ICON_STROKE} className="onyx-accent" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {repos.length > 1 && (
+            <>
+              <div className="onyx-menu-divider" />
+              <div className="onyx-menu-section">Repositories</div>
+              <div className="onyx-recent-projects-scroll">
+                {repos.map((r) => {
+                  const isCurrent = r.rootPath === activeRepoRoot || (!activeRepoRoot && r.isRoot);
+                  return (
+                    <button
+                      key={r.rootPath}
+                      type="button"
+                      className="onyx-menu-item is-two-line"
+                      title={r.rootPath}
+                      onClick={() => selectRepo(r.rootPath)}
+                    >
+                      <FolderGit2 size={14} strokeWidth={ICON_STROKE} />
+                      <span className="onyx-menu-label">
+                        <span className="onyx-menu-repo-title">
+                          <span>{r.name}</span>
+                          {r.isRoot && <span className="onyx-repo-root-tag">Root</span>}
+                        </span>
+                        <span className="onyx-menu-sub">
+                          {r.relPath || '.'}
+                          {r.branch ? ` · ${r.branch}` : ''}
+                        </span>
+                      </span>
+                      {r.changedCount > 0 && <span className="onyx-repo-badge">{r.changedCount}</span>}
                       {isCurrent && <Check size={14} strokeWidth={ICON_STROKE} className="onyx-accent" />}
                     </button>
                   );

@@ -62,6 +62,7 @@ pub fn run() {
             git_ops::git_stash_list,
             git_ops::git_stash_push,
             git_ops::git_stash_pop,
+            git_ops::git_list_repos,
             task_runner::task_discover,
             task_runner::task_run,
             task_runner::task_run_custom,

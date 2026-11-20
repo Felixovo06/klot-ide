@@ -36,9 +36,10 @@ export function orderedCliOptions(available: string[]): string[] {
   return out;
 }
 
-// 右侧终端输出静止 1 秒后静默同步 Git 状态与分支（CLI 代理改动文件或提交后自动联动左侧改动列表）
+// 右侧终端输出静止 1 秒后静默同步 Git 仓库列表、状态与分支（CLI 代理改动文件或提交后自动联动左侧改动列表）
 const silentGitSync = debounce(() => {
   const git = useGitStore.getState();
+  void git.refreshRepos({ silent: true });
   void git.refresh({ silent: true });
   void git.refreshBranches();
 }, 1000);

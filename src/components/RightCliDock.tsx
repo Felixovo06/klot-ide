@@ -3,6 +3,7 @@ import {
   AtSign,
   Braces,
   ChevronRight,
+  FolderGit2,
   Orbit,
   Pi,
   Plus,
@@ -12,8 +13,10 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { cliDisplayName, orderedCliOptions, useCliStore } from '../stores/cliStore';
+import { useGitStore } from '../stores/gitStore';
 import { useUiStore } from '../stores/uiStore';
 import { chipRef } from '../stores/utils';
+import { useWorkspaceStore } from '../stores/workspaceStore';
 import { CliInput } from './CliInput';
 import { TerminalView } from './TerminalView';
 import { ICON_STROKE, useDismiss } from './ui';
@@ -71,16 +74,53 @@ const CLI_ICONS: Record<string, LucideIcon> = {
   zsh: SquareTerminal,
 };
 
-/** 无会话时的 CLI 启动器首页：按优先顺序卡片化展示本机可用 CLI，点击即在当前工作区拉起对应 PTY */
-function CliLauncher({ options, onPick }: { options: string[]; onPick: (cmd: string) => void }) {
+/** 无会话时的 CLI 启动器首页：按优先顺序卡片化展示本机可用 CLI，点击即在选定目录拉起对应 PTY */
+function CliLauncher({
+  options,
+  onPick,
+}: {
+  options: string[];
+  onPick: (cmd: string, opts?: { cwd?: string }) => void;
+}) {
   const chips = useCliStore((s) => s.chips);
   const removeChip = useCliStore((s) => s.removeChip);
+  const repos = useGitStore((s) => s.repos);
+  const root = useWorkspaceStore((s) => s.root);
+  const repoName = useWorkspaceStore((s) => s.repoName);
+  const [selectedCwd, setSelectedCwd] = useState(root);
+  const effectiveCwd = selectedCwd && repos.some((r) => r.rootPath === selectedCwd) ? selectedCwd : root;
+
   return (
     <div className="onyx-cli-launcher">
       <div className="onyx-cli-launcher-head">
         <div className="onyx-cli-launcher-title">选择 CLI 开启会话</div>
-        <div className="onyx-cli-launcher-sub">点击任一本机 CLI 在当前工作区启动交互式终端</div>
+        <div className="onyx-cli-launcher-sub">
+          {repos.length > 1 ? '选择启动目录与本机 CLI 开启交互式终端' : '点击任一本机 CLI 在当前工作区启动交互式终端'}
+        </div>
       </div>
+      {repos.length > 1 && (
+        <label className="onyx-cli-cwd-bar">
+          <span className="onyx-cli-cwd-label">
+            <FolderGit2 size={13} strokeWidth={ICON_STROKE} />
+            <span>启动目录</span>
+          </span>
+          <select
+            className="onyx-cli-cwd-select"
+            value={effectiveCwd}
+            onChange={(e) => setSelectedCwd(e.target.value)}
+          >
+            <option value={root}>{repoName || 'workspace'}（工作区根目录）</option>
+            {repos
+              .filter((r) => !r.isRoot)
+              .map((r) => (
+                <option key={r.rootPath} value={r.rootPath}>
+                  {r.relPath || r.name}
+                  {r.branch ? ` (${r.branch})` : ''}
+                </option>
+              ))}
+          </select>
+        </label>
+      )}
       {chips.length > 0 && (
         <div className="onyx-cli-launcher-chips">
           <div className="onyx-cli-launcher-chips-label">
@@ -107,8 +147,8 @@ function CliLauncher({ options, onPick }: { options: string[]; onPick: (cmd: str
               key={cmd}
               type="button"
               className="onyx-cli-launcher-item"
-              title={`在当前工作区启动 ${cliDisplayName(cmd)}`}
-              onClick={() => onPick(cmd)}
+              title={`在选定目录启动 ${cliDisplayName(cmd)}`}
+              onClick={() => onPick(cmd, effectiveCwd && effectiveCwd !== root ? { cwd: effectiveCwd } : undefined)}
             >
               <span className="onyx-cli-launcher-icon">
                 <Icon size={16} strokeWidth={ICON_STROKE} />

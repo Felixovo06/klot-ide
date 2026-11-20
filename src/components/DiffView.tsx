@@ -19,6 +19,7 @@ export function DiffView() {
   const selected = useGitStore((s) => s.selected);
   const status = useGitStore((s) => s.status);
   const diffLoading = useGitStore((s) => s.diffLoading);
+  const activeRepoRoot = useGitStore((s) => s.activeRepoRoot);
   const root = useWorkspaceStore((s) => s.root);
   const prefs = useUiStore((s) => s.prefs);
   const [layout, setLayout] = useState<'inline' | 'split'>('split');
@@ -93,7 +94,7 @@ export function DiffView() {
     let ownsModified = false;
     const editable = !selected.staged && !isDeleted;
     if (editable) {
-      const full = joinPath(root, diff.path);
+      const full = joinPath(activeRepoRoot || root, diff.path);
       modified = getFileModel(full) ?? ensureFileModel(full, diff.modifiedText);
     } else {
       ownsModified = true;
@@ -114,12 +115,13 @@ export function DiffView() {
       original.dispose();
       if (ownsModified) modified.dispose();
     };
-  }, [diff, selected, root, isDeleted]);
+  }, [diff, selected, root, activeRepoRoot, isDeleted]);
 
   const openFile = () => {
     if (!selected || isDeleted) return;
+    const wsPath = useGitStore.getState().toWorkspaceRel(selected.path);
     useUiStore.getState().setMode('code');
-    void useWorkspaceStore.getState().openFile(selected.path);
+    void useWorkspaceStore.getState().openFile(wsPath);
   };
 
   const hasDiff = !!diff && !!selected && diff.path === selected.path;

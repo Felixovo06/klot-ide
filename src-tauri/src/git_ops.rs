@@ -1,8 +1,10 @@
 use crate::env_path::AppEnv;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use tokio::process::Command;
+use tokio::sync::Semaphore;
 use tauri::State;
 
 #[derive(Debug, Clone, Serialize)]
@@ -120,6 +122,19 @@ pub struct GitStashEntry {
     pub ref_name: String,
     pub message: String,
     pub relative_time: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitRepoSummary {
+    pub rel_path: String,
+    pub root_path: String,
+    pub name: String,
+    pub branch: String,
+    pub ahead: u32,
+    pub behind: u32,
+    pub changed_count: usize,
+    pub is_root: bool,
 }
 
 async fn run_git_with_env(
@@ -1588,6 +1603,98 @@ pub async fn git_stash_pop(
     git_stash_pop_core(&env, &root, index).await
 }
 
+pub async fn git_list_repos_core(env: &AppEnv, root: &str) -> Result<Vec<GitRepoSummary>, String> {
+    let root_path = PathBuf::from(root);
+    if !root_path.exists() {
+        return Ok(Vec::new());
+    }
+
+    let mut candidates: Vec<(String, PathBuf, bool)> = Vec::new();
+    if root_path.join(".git").exists() {
+        candidates.push((String::new(), root_path.clone(), true));
+    }
+
+    let nested = tokio::task::spawn_blocking({
+        let p = root_path.clone();
+        move || crate::fs_tree::discover_nested_git_repos(&p)
+    })
+    .await
+    .map_err(|e| format!("扫描子仓库任务异常: {}", e))?;
+
+    for sub_rel in nested {
+        let rel_str = sub_rel.to_string_lossy().replace('\\', "/");
+        candidates.push((rel_str, root_path.join(&sub_rel), false));
+    }
+
+    let sem = Arc::new(Semaphore::new(8));
+    let mut handles = Vec::with_capacity(candidates.len());
+
+    for (rel_path, repo_path, is_root) in candidates {
+        let sem_clone = Arc::clone(&sem);
+        let env_clone = env.clone();
+        handles.push(tokio::spawn(async move {
+            let _permit = sem_clone.acquire().await;
+            let repo_str = repo_path.to_string_lossy().into_owned();
+            let name = repo_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or(if is_root { "root" } else { &rel_path })
+                .to_string();
+
+            let empty_stats = HashMap::new();
+            let status = match run_git_with_env(
+                &env_clone,
+                &repo_str,
+                &["status", "--porcelain=v2", "--branch", "-z"],
+                &[],
+            )
+            .await
+            {
+                Ok(bytes) => parse_porcelain_v2_z(&bytes, &empty_stats, &empty_stats),
+                Err(_) => GitStatusResult {
+                    is_repo: true,
+                    branch: "HEAD".to_string(),
+                    upstream: None,
+                    ahead: 0,
+                    behind: 0,
+                    staged: Vec::new(),
+                    changes: Vec::new(),
+                    total_changes: 0,
+                },
+            };
+
+            GitRepoSummary {
+                rel_path,
+                root_path: repo_str,
+                name,
+                branch: status.branch,
+                ahead: status.ahead,
+                behind: status.behind,
+                changed_count: status.total_changes,
+                is_root,
+            }
+        }));
+    }
+
+    let mut repos = Vec::with_capacity(handles.len());
+    for h in handles {
+        if let Ok(item) = h.await {
+            repos.push(item);
+        }
+    }
+
+    repos.sort_by(|a, b| (!a.is_root).cmp(&(!b.is_root)).then_with(|| a.rel_path.cmp(&b.rel_path)));
+    Ok(repos)
+}
+
+#[tauri::command]
+pub async fn git_list_repos(
+    env: State<'_, AppEnv>,
+    root: String,
+) -> Result<Vec<GitRepoSummary>, String> {
+    git_list_repos_core(&env, &root).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1945,6 +2052,114 @@ mod tests {
         assert!(work_a.join("scratch.ts").is_file());
         let stashes_after = git_stash_list_core(&env, &a_str).await.unwrap();
         assert!(stashes_after.is_empty());
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[tokio::test]
+    async fn test_umbrella_repo_with_gitignored_nested_repos() {
+        let tmp = std::env::temp_dir().join(format!(
+            "ke_umbrella_multi_repo_test_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let root_str = tmp.to_string_lossy().into_owned();
+        let env = AppEnv::init();
+
+        // 外层仓库 .gitignore 使用 /* + !/docs/ 屏蔽其他目录
+        std::fs::create_dir_all(tmp.join("docs")).unwrap();
+        std::fs::write(tmp.join(".gitignore"), "/*\n!/docs/\n").unwrap();
+        std::fs::write(tmp.join("docs/guide.md"), "# Umbrella Guide\n").unwrap();
+
+        run_git(&env, &root_str, &["init", "-b", "main"]).await.unwrap();
+        run_git(&env, &root_str, &["config", "user.email", "tester@klot.dev"])
+            .await
+            .unwrap();
+        run_git(&env, &root_str, &["config", "user.name", "Klot Tester"])
+            .await
+            .unwrap();
+        run_git(&env, &root_str, &["add", "-f", ".gitignore"])
+            .await
+            .unwrap();
+        git_stage_core(&env, &root_str, &[String::from("docs/guide.md")])
+            .await
+            .unwrap();
+        git_commit_core(&env, &root_str, "chore: root umbrella").await.unwrap();
+
+        // 子仓库 1: coding-claw
+        let claw_dir = tmp.join("coding-claw");
+        let claw_str = claw_dir.to_string_lossy().into_owned();
+        std::fs::create_dir_all(claw_dir.join("src")).unwrap();
+        std::fs::create_dir_all(claw_dir.join("dist")).unwrap();
+        std::fs::write(claw_dir.join(".gitignore"), "dist/\n").unwrap();
+        std::fs::write(claw_dir.join("package.json"), r#"{"scripts":{"dev":"vite"}}"#).unwrap();
+        std::fs::write(claw_dir.join("src/main.ts"), "export const UM_MARKER = 1;\n").unwrap();
+        std::fs::write(claw_dir.join("dist/bundle.js"), "const UM_MARKER = 999;\n").unwrap();
+        run_git(&env, &claw_str, &["init", "-b", "feat/claw"]).await.unwrap();
+
+        // 子仓库 2: services/ledger
+        let ledger_dir = tmp.join("services/ledger");
+        let ledger_str = ledger_dir.to_string_lossy().into_owned();
+        std::fs::create_dir_all(ledger_dir.join("src")).unwrap();
+        std::fs::write(ledger_dir.join("src/lib.rs"), "pub const UM_MARKER: i32 = 2;\n").unwrap();
+        run_git(&env, &ledger_str, &["init", "-b", "main"]).await.unwrap();
+
+        // 1. 文件树应展示 docs 与两个嵌套子仓库，且遵循子仓库各自 .gitignore
+        let tree = crate::fs_tree::build_fs_tree(&tmp).unwrap();
+        let claw_node = tree.iter().find(|n| n.name == "coding-claw").expect("应包含 coding-claw");
+        assert_eq!(claw_node.is_git_repo, Some(true));
+        let claw_children = claw_node.children.as_ref().unwrap();
+        assert!(claw_children.iter().any(|n| n.name == "src"));
+        assert!(!claw_children.iter().any(|n| n.name == "dist"));
+
+        let services_node = tree.iter().find(|n| n.name == "services").expect("应包含 services");
+        let ledger_node = services_node
+            .children
+            .as_ref()
+            .unwrap()
+            .iter()
+            .find(|n| n.name == "ledger")
+            .expect("应包含 services/ledger");
+        assert_eq!(ledger_node.is_git_repo, Some(true));
+
+        // 2. 全库搜索应命中两个子仓库源码且跳过子仓库 dist/
+        let mut matched_paths = Vec::new();
+        let summary = crate::search::execute_search(&tmp, "UM_MARKER", false, true, |ev| {
+            if let crate::search::SearchStreamEvent::Match(file_res) = ev {
+                matched_paths.push(file_res.path);
+            }
+        })
+        .unwrap();
+        assert_eq!(summary.total_files, 2);
+        assert!(matched_paths.contains(&"coding-claw/src/main.ts".to_string()));
+        assert!(matched_paths.contains(&"services/ledger/src/lib.rs".to_string()));
+        assert!(!matched_paths.iter().any(|p| p.contains("dist/bundle.js")));
+
+        // 3. 文件监听路径过滤应放行任意层级子仓库 .git 元数据，屏蔽锁文件与 objects
+        assert!(!crate::fs_tree::should_ignore_watch_path(Path::new("coding-claw/.git/HEAD")));
+        assert!(!crate::fs_tree::should_ignore_watch_path(Path::new("services/ledger/.git/refs/heads/main")));
+        assert!(crate::fs_tree::should_ignore_watch_path(Path::new("coding-claw/.git/index.lock")));
+        assert!(crate::fs_tree::should_ignore_watch_path(Path::new("coding-claw/.git/objects/ab/cdef")));
+
+        // 4. git_list_repos_core 应返回 3 个仓库（根 + 2 个子仓库）
+        let repos = git_list_repos_core(&env, &root_str).await.unwrap();
+        assert_eq!(repos.len(), 3);
+        assert!(repos[0].is_root && repos[0].rel_path.is_empty());
+        assert_eq!(repos[1].rel_path, "coding-claw");
+        assert_eq!(repos[1].branch, "feat/claw");
+        assert!(repos[1].changed_count >= 1);
+        assert_eq!(repos[2].rel_path, "services/ledger");
+
+        // 5. discover_tasks_in_dir 应发现子仓库任务并保持子仓库 cwd
+        let tasks = crate::task_runner::discover_tasks_in_dir(&tmp);
+        let claw_task = tasks
+            .iter()
+            .find(|t| t.id == "sub:coding-claw:npm:dev")
+            .expect("应发现子仓库 npm:dev 任务");
+        assert_eq!(claw_task.cwd, claw_str);
+        assert_eq!(claw_task.name, "coding-claw: dev");
 
         let _ = std::fs::remove_dir_all(&tmp);
     }

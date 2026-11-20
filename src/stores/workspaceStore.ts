@@ -293,7 +293,12 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
       set((s) => {
         const expanded = { ...s.expanded };
         if (!s.treeLoaded) {
-          for (const n of tree) if (n.isDir) expanded[n.path] = true;
+          const topDirs = tree.filter((n) => n.isDir);
+          if (topDirs.length <= 6) {
+            for (const n of topDirs) {
+              if (!n.isGitRepo) expanded[n.path] = true;
+            }
+          }
         }
         return { tree, treeLoaded: true, expanded };
       });
@@ -360,8 +365,7 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
     const git = useGitStore.getState();
     await Promise.all([
       get().refreshTree(),
-      git.refresh({ silent: true }),
-      git.refreshBranches(),
+      git.refreshRepos({ silent: true }),
       useRunStore.getState().discover(),
       usePluginStore.getState().init(target),
     ]);
@@ -601,6 +605,7 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
             }
           : null,
       });
+      useGitStore.getState().syncRepoByFilePath(rel);
     }
     get().expandTo(rel);
     return true;
@@ -740,6 +745,7 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
   setActive: (path) => {
     set({ activePath: path, reveal: null });
     get().expandTo(path);
+    useGitStore.getState().syncRepoByFilePath(path);
   },
 
   setDirtyByFull: (fullPath, dirty) =>

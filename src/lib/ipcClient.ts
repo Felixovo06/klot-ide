@@ -12,6 +12,7 @@ import {
   type GitCompareResult,
   type GitDiffResult,
   type GitGraphNode,
+  type GitRepoSummary,
   type GitStashEntry,
   type GitStatusResult,
   type LspDiagnosticsEvent,
@@ -972,6 +973,37 @@ export async function gitStashPop(root: string, index?: number | null): Promise<
     return;
   }
   return invoke<void>('git_stash_pop', { root, index: index ?? null });
+}
+
+export async function gitListRepos(root: string): Promise<GitRepoSummary[]> {
+  if (!isTauriRuntime()) {
+    const current = mockBranches.find((b) => b.isCurrent)?.name ?? 'feat/idempotent-refund';
+    const baseRoot = root || MOCK_ROOT;
+    const rootName = baseRoot.split('/').filter(Boolean).pop() ?? 'kt-payment-core';
+    return [
+      {
+        relPath: '',
+        rootPath: baseRoot,
+        name: rootName,
+        branch: current,
+        ahead: 1,
+        behind: 0,
+        changedCount: 4,
+        isRoot: true,
+      },
+      {
+        relPath: 'packages/settlement',
+        rootPath: `${baseRoot}/packages/settlement`,
+        name: 'settlement',
+        branch: 'main',
+        ahead: 0,
+        behind: 1,
+        changedCount: 2,
+        isRoot: false,
+      },
+    ];
+  }
+  return invoke<GitRepoSummary[]>('git_list_repos', { root });
 }
 
 // ==================== 任务运行器 (task_runner.rs) ====================

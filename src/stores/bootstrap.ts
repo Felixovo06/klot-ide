@@ -34,9 +34,10 @@ export function isGitInternalPath(path: string): boolean {
   return p === '.git' || p.startsWith('.git/') || p.includes('/.git/') || p.endsWith('/.git');
 }
 
-/** 静默同步 Git 状态与分支列表（失败不弹 toast） */
+/** 静默同步 Git 多仓库汇总、状态与分支列表（失败不弹 toast） */
 function syncGitSilently() {
   const git = useGitStore.getState();
+  void git.refreshRepos({ silent: true });
   void git.refresh({ silent: true });
   void git.refreshBranches();
 }
@@ -105,8 +106,7 @@ export async function bootstrapApp() {
   fsWatchWorkspace(root).catch(() => {});
 
   const git = useGitStore.getState();
-  await git.refresh();
-  void git.refreshBranches();
+  await git.refreshRepos();
   void useRunStore.getState().discover();
   void usePluginStore.getState().init(root);
   useCliStore.getState().initSessions(ctx.availableClis);
@@ -117,7 +117,7 @@ export async function bootstrapApp() {
     const seen = new Set<string>();
     const changed = [...status.changes, ...status.staged]
       .filter((c) => c.status !== 'D' && !seen.has(c.path) && seen.add(c.path))
-      .map((c) => c.path)
+      .map((c) => useGitStore.getState().toWorkspaceRel(c.path))
       .sort((a, b) => Number(a.startsWith('tests/')) - Number(b.startsWith('tests/')));
     const initial = isTauriRuntime() ? changed.slice(0, 1) : changed.slice(0, 4);
     for (let i = 0; i < initial.length; i += 1) {

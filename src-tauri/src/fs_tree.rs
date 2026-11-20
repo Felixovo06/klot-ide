@@ -2,7 +2,7 @@ use ignore::WalkBuilder;
 use notify::RecursiveMode;
 use notify_debouncer_mini::{new_debouncer, DebounceEventResult, Debouncer};
 use serde::Serialize;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -16,6 +16,8 @@ pub struct FsTreeNode {
     pub path: String,
     pub full_path: String,
     pub is_dir: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_git_repo: Option<bool>,
     pub size: Option<u64>,
     pub children: Option<Vec<FsTreeNode>>,
 }
@@ -58,23 +60,116 @@ fn should_skip_dir(name: &str) -> bool {
     )
 }
 
+fn should_skip_probe_dir(name: &str) -> bool {
+    matches!(
+        name,
+        ".git"
+            | "node_modules"
+            | "target"
+            | "dist"
+            | "build"
+            | ".next"
+            | ".turbo"
+            | ".venv"
+            | "venv"
+            | "vendor"
+            | ".ke"
+            | ".idea"
+            | ".vscode"
+            | ".DS_Store"
+    )
+}
+
+fn walk_nested_git_repos(
+    root: &Path,
+    cur: &Path,
+    depth: usize,
+    max_depth: usize,
+    out: &mut Vec<PathBuf>,
+) {
+    if depth >= max_depth {
+        return;
+    }
+    let Ok(entries) = fs::read_dir(cur) else {
+        return;
+    };
+    for entry_res in entries {
+        let Ok(entry) = entry_res else {
+            continue;
+        };
+        let Ok(ft) = entry.file_type() else {
+            continue;
+        };
+        if ft.is_symlink() || !ft.is_dir() {
+            continue;
+        }
+        let name = entry.file_name();
+        let Some(name_str) = name.to_str() else {
+            continue;
+        };
+        if should_skip_probe_dir(name_str) {
+            continue;
+        }
+
+        let child_path = entry.path();
+        let child_depth = depth + 1;
+        if child_path.join(".git").exists() {
+            if let Ok(rel) = child_path.strip_prefix(root) {
+                out.push(rel.to_path_buf());
+            }
+            // 仅当存在 .gitmodules 时允许继续向下探测直接 submodule
+            if child_path.join(".gitmodules").exists() {
+                walk_nested_git_repos(root, &child_path, child_depth, child_depth + 1, out);
+            }
+        } else if child_depth < max_depth {
+            walk_nested_git_repos(root, &child_path, child_depth, max_depth, out);
+        }
+    }
+}
+
+pub fn discover_nested_git_repos(root: &Path) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    walk_nested_git_repos(root, root, 0, 3, &mut out);
+    out.sort_by(|a, b| {
+        a.to_string_lossy()
+            .replace('\\', "/")
+            .cmp(&b.to_string_lossy().replace('\\', "/"))
+    });
+    out.dedup();
+    out
+}
+
 pub fn should_ignore_watch_path(rel: &Path) -> bool {
     let rel_str = rel.to_string_lossy().replace('\\', "/");
     if rel_str.is_empty() {
         return true;
     }
 
-    let first = rel.components().next().and_then(|c| c.as_os_str().to_str());
-    if first == Some(".git") {
-        if rel_str == ".git" {
+    let comps: Vec<&str> = rel
+        .components()
+        .filter_map(|c| c.as_os_str().to_str())
+        .collect();
+
+    if comps.iter().any(|&name| {
+        matches!(
+            name,
+            "node_modules" | "target" | "dist" | ".DS_Store" | ".next" | ".turbo"
+        )
+    }) {
+        return true;
+    }
+
+    if let Some(git_pos) = comps.iter().position(|&c| c == ".git") {
+        let after = &comps[git_pos + 1..];
+        if after.is_empty() {
             return false;
         }
-        let sub = rel_str.strip_prefix(".git/").unwrap_or("");
+        let sub = after.join("/");
         if sub.ends_with(".lock") {
             return true;
         }
         if matches!(
-            sub,
+            sub.as_str(),
             "HEAD" | "index" | "packed-refs" | "config" | "MERGE_HEAD" | "REBASE_HEAD"
         ) {
             return false;
@@ -89,17 +184,7 @@ pub fn should_ignore_watch_path(rel: &Path) -> bool {
         return true;
     }
 
-    rel.components().any(|c| {
-        c.as_os_str()
-            .to_str()
-            .map(|name| {
-                matches!(
-                    name,
-                    "node_modules" | "target" | "dist" | ".DS_Store" | ".next" | ".turbo"
-                )
-            })
-            .unwrap_or(false)
-    })
+    false
 }
 
 #[derive(Default)]
@@ -107,6 +192,7 @@ struct DirBuilder {
     name: String,
     rel_path: String,
     full_path: String,
+    is_git_repo: bool,
     dirs: BTreeMap<String, DirBuilder>,
     files: Vec<FsTreeNode>,
 }
@@ -121,12 +207,14 @@ impl DirBuilder {
                 let name = d.name.clone();
                 let rel_path = d.rel_path.clone();
                 let full_path = d.full_path.clone();
+                let is_git_repo = if d.is_git_repo { Some(true) } else { None };
                 let children = d.into_nodes();
                 FsTreeNode {
                     name,
                     path: rel_path,
                     full_path,
                     is_dir: true,
+                    is_git_repo,
                     size: None,
                     children: Some(children),
                 }
@@ -143,19 +231,56 @@ impl DirBuilder {
     }
 }
 
-pub fn build_fs_tree(root: &Path) -> Result<Vec<FsTreeNode>, String> {
-    if !root.exists() {
-        return Err(format!("工作区目录不存在: {}", root.display()));
+fn ensure_dir_chain<'a>(
+    tree: &'a mut DirBuilder,
+    root: &Path,
+    components: &[String],
+    mark_last_git_repo: bool,
+) -> &'a mut DirBuilder {
+    let mut cursor = tree;
+    let mut accum_rel = String::new();
+    let mut accum_full = root.to_path_buf();
+
+    for (idx, part) in components.iter().enumerate() {
+        if !accum_rel.is_empty() {
+            accum_rel.push('/');
+        }
+        accum_rel.push_str(part);
+        accum_full.push(part);
+
+        let key = part.clone();
+        let rel_clone = accum_rel.clone();
+        let full_clone = accum_full.to_string_lossy().into_owned();
+        cursor = cursor.dirs.entry(key).or_insert_with(|| DirBuilder {
+            name: part.clone(),
+            rel_path: rel_clone,
+            full_path: full_clone,
+            is_git_repo: false,
+            dirs: BTreeMap::new(),
+            files: Vec::new(),
+        });
+        if mark_last_git_repo && idx == components.len() - 1 {
+            cursor.is_git_repo = true;
+        }
     }
+    cursor
+}
 
-    let mut tree = DirBuilder::default();
+fn walk_and_insert_into_tree(
+    tree: &mut DirBuilder,
+    workspace_root: &Path,
+    walk_root: &Path,
+    nested_abs_set: &HashSet<PathBuf>,
+) {
+    let skip_set = nested_abs_set.clone();
+    let walk_root_buf = walk_root.to_path_buf();
 
-    let walker = WalkBuilder::new(root)
+    let walker = WalkBuilder::new(walk_root)
         .hidden(false)
         .git_ignore(true)
         .git_global(true)
         .git_exclude(true)
-        .filter_entry(|entry| {
+        .filter_entry(move |entry| {
             if entry.depth() == 0 {
                 return true;
             }
@@ -163,6 +288,10 @@ pub fn build_fs_tree(root: &Path) -> Result<Vec<FsTreeNode>, String> {
                 if should_skip_dir(name) {
                     return false;
                 }
+            }
+            let p = entry.path();
+            if p != walk_root_buf && skip_set.contains(p) {
+                return false;
             }
             true
         })
@@ -177,7 +306,7 @@ pub fn build_fs_tree(root: &Path) -> Result<Vec<FsTreeNode>, String> {
             continue;
         }
         let abs_path = entry.path();
-        let rel = match abs_path.strip_prefix(root) {
+        let rel = match abs_path.strip_prefix(workspace_root) {
             Ok(r) => r,
             Err(_) => continue,
         };
@@ -190,41 +319,50 @@ pub fn build_fs_tree(root: &Path) -> Result<Vec<FsTreeNode>, String> {
         }
 
         let is_dir = entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
-        let mut cursor = &mut tree;
-        let mut accum_rel = String::new();
-        let mut accum_full = root.to_path_buf();
-
-        for (idx, part) in components.iter().enumerate() {
-            if !accum_rel.is_empty() {
-                accum_rel.push('/');
-            }
-            accum_rel.push_str(part);
-            accum_full.push(part);
-
-            let is_last = idx == components.len() - 1;
-            if is_last && !is_dir {
-                let size = entry.metadata().ok().map(|m| m.len());
-                cursor.files.push(FsTreeNode {
-                    name: part.clone(),
-                    path: accum_rel.clone(),
-                    full_path: accum_full.to_string_lossy().into_owned(),
-                    is_dir: false,
-                    size,
-                    children: None,
-                });
-            } else {
-                let key = part.clone();
-                let rel_clone = accum_rel.clone();
-                let full_clone = accum_full.to_string_lossy().into_owned();
-                cursor = cursor.dirs.entry(key).or_insert_with(|| DirBuilder {
-                    name: part.clone(),
-                    rel_path: rel_clone,
-                    full_path: full_clone,
-                    dirs: BTreeMap::new(),
-                    files: Vec::new(),
-                });
-            }
+        if is_dir {
+            ensure_dir_chain(tree, workspace_root, &components, false);
+        } else {
+            let parent_comps = &components[..components.len() - 1];
+            let dir_builder = ensure_dir_chain(tree, workspace_root, parent_comps, false);
+            let file_name = components[components.len() - 1].clone();
+            let rel_str = components.join("/");
+            let size = entry.metadata().ok().map(|m| m.len());
+            dir_builder.files.push(FsTreeNode {
+                name: file_name,
+                path: rel_str,
+                full_path: abs_path.to_string_lossy().into_owned(),
+                is_dir: false,
+                is_git_repo: None,
+                size,
+                children: None,
+            });
         }
+    }
+}
+
+pub fn build_fs_tree(root: &Path) -> Result<Vec<FsTreeNode>, String> {
+    if !root.exists() {
+        return Err(format!("工作区目录不存在: {}", root.display()));
+    }
+
+    let mut tree = DirBuilder::default();
+    let nested_repos = discover_nested_git_repos(root);
+    let nested_abs_set: HashSet<PathBuf> = nested_repos.iter().map(|rel| root.join(rel)).collect();
+
+    // 1. 扫描外层目录（跳过已探测的子仓库，使其不受外层 .gitignore 通配屏蔽）
+    walk_and_insert_into_tree(&mut tree, root, root, &nested_abs_set);
+
+    // 2. 分别挂载并扫描各嵌套 Git 子仓库（确保空子仓库也显示并标记 isGitRepo）
+    for sub_rel in &nested_repos {
+        let comps: Vec<String> = sub_rel
+            .iter()
+            .filter_map(|c| c.to_str().map(|s| s.to_string()))
+            .collect();
+        if !comps.is_empty() {
+            ensure_dir_chain(&mut tree, root, &comps, true);
+        }
+        let sub_root = root.join(sub_rel);
+        walk_and_insert_into_tree(&mut tree, root, &sub_root, &nested_abs_set);
     }
 
     Ok(tree.into_nodes())

@@ -1,15 +1,18 @@
-import { useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Archive,
   ArchiveRestore,
   ArrowDown,
   ArrowUp,
+  Check,
   ChevronDown,
   ChevronRight,
   FileText,
+  FolderGit2,
   Minus,
   Plus,
   RefreshCw,
+  Search,
   Undo2,
 } from 'lucide-react';
 import type { GitFileChange } from '../types/ipc';
@@ -20,7 +23,7 @@ import { useWorkspaceStore } from '../stores/workspaceStore';
 import { GitInitEmpty } from './GitInitEmpty';
 import { CommitDetailPanel, ComparePanel } from './GitHistoryPanels';
 import { formatShortcut } from './shortcuts';
-import { ICON_STROKE, Segmented } from './ui';
+import { ICON_STROKE, Segmented, useDismiss } from './ui';
 
 function ChangeRow({ change }: { change: GitFileChange }) {
   const selected = useGitStore((s) => s.selected);
@@ -34,8 +37,9 @@ function ChangeRow({ change }: { change: GitFileChange }) {
 
   const openInEditor = () => {
     if (change.status === 'D') return;
+    const wsPath = useGitStore.getState().toWorkspaceRel(change.path);
     useUiStore.getState().setMode('code');
-    void useWorkspaceStore.getState().openFile(change.path);
+    void useWorkspaceStore.getState().openFile(wsPath);
   };
 
   return (
@@ -117,6 +121,108 @@ function Section({
   );
 }
 
+function RepoSwitcher() {
+  const repos = useGitStore((s) => s.repos);
+  const activeRepoRoot = useGitStore((s) => s.activeRepoRoot);
+  const selectRepo = useGitStore((s) => s.selectRepo);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+  const close = useCallback(() => setOpen(false), []);
+  useDismiss(ref, open, close);
+
+  const visible = repos.length > 1 || (repos.length === 1 && !repos[0].isRoot);
+  const activeRepo = useMemo(
+    () => repos.find((r) => r.rootPath === activeRepoRoot) ?? repos[0] ?? null,
+    [repos, activeRepoRoot],
+  );
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return repos;
+    return repos.filter(
+      (r) =>
+        r.name.toLowerCase().includes(q) ||
+        r.relPath.toLowerCase().includes(q) ||
+        r.branch.toLowerCase().includes(q),
+    );
+  }, [repos, query]);
+
+  if (!visible || !activeRepo) return null;
+
+  return (
+    <div className="onyx-repo-switcher onyx-popover-anchor" ref={ref}>
+      <button
+        type="button"
+        className={`onyx-repo-btn${open ? ' is-open' : ''}`}
+        title={activeRepo.relPath ? `${activeRepo.name} (${activeRepo.relPath})` : activeRepo.name}
+        onClick={() => {
+          setOpen((v) => {
+            if (!v) setQuery('');
+            return !v;
+          });
+        }}
+      >
+        <FolderGit2 size={13} strokeWidth={ICON_STROKE} className="onyx-repo-icon" />
+        <span className="onyx-repo-btn-name">{activeRepo.name}</span>
+        {activeRepo.isRoot && <span className="onyx-repo-root-tag">Root</span>}
+        {activeRepo.branch && <span className="onyx-repo-btn-branch">{activeRepo.branch}</span>}
+        {activeRepo.changedCount > 0 && <span className="onyx-repo-badge">{activeRepo.changedCount}</span>}
+        <ChevronDown size={12} strokeWidth={ICON_STROKE} className="onyx-dim" />
+      </button>
+      {open && (
+        <div className="onyx-menu onyx-repo-menu">
+          <div className="onyx-menu-search">
+            <Search size={13} strokeWidth={ICON_STROKE} />
+            <input
+              autoFocus
+              value={query}
+              placeholder="筛选 Git 仓库..."
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
+          <div className="onyx-menu-scroll">
+            {filtered.length === 0 && <div className="onyx-menu-empty">无匹配仓库</div>}
+            {filtered.map((r) => {
+              const isCurrent = r.rootPath === activeRepo.rootPath;
+              const syncText =
+                r.ahead > 0 || r.behind > 0
+                  ? ` ${r.ahead > 0 ? `+${r.ahead}` : ''}${r.behind > 0 ? ` -${r.behind}` : ''}`
+                  : '';
+              return (
+                <button
+                  key={r.rootPath}
+                  type="button"
+                  className="onyx-menu-item is-two-line"
+                  title={r.rootPath}
+                  onClick={() => {
+                    setOpen(false);
+                    selectRepo(r.rootPath);
+                  }}
+                >
+                  <FolderGit2 size={14} strokeWidth={ICON_STROKE} />
+                  <span className="onyx-menu-label">
+                    <span className="onyx-menu-repo-title">
+                      <span>{r.name}</span>
+                      {r.isRoot && <span className="onyx-repo-root-tag">Root</span>}
+                    </span>
+                    <span className="onyx-menu-sub">
+                      {r.relPath || '.'}
+                      {r.branch ? ` · ${r.branch}` : ''}
+                      {syncText}
+                    </span>
+                  </span>
+                  <span className={`onyx-repo-badge${r.changedCount > 0 ? '' : ' is-zero'}`}>{r.changedCount}</span>
+                  {isCurrent && <Check size={13} strokeWidth={ICON_STROKE} className="onyx-accent" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function GitPanel() {
   const status = useGitStore((s) => s.status);
   const tab = useGitStore((s) => s.gitTab);
@@ -140,6 +246,7 @@ export function GitPanel() {
 
   return (
     <div className="onyx-git-panel">
+      <RepoSwitcher />
       <div className="onyx-git-nav">
         <Segmented
           size="sm"

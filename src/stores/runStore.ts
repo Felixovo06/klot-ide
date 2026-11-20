@@ -249,7 +249,7 @@ export const useRunStore = create<RunState>()((set, get) => {
         await get().restart();
         return;
       }
-      const root = useWorkspaceStore.getState().root;
+      const cwd = task.cwd || useWorkspaceStore.getState().root;
       const token = ++runToken;
       set({
         run: {
@@ -269,8 +269,8 @@ export const useRunStore = create<RunState>()((set, get) => {
         const handler = makeHandler(token);
         const handle =
           task.source === 'custom'
-            ? await taskRunCustom(root, task.name, task.command, handler)
-            : await taskRun(root, task.id, task.command, handler);
+            ? await taskRunCustom(cwd, task.name, task.command, handler)
+            : await taskRun(cwd, task.id, task.command, handler);
         if (token !== runToken) return;
         const run = get().run;
         if (run && run.status === 'starting') {
@@ -312,8 +312,8 @@ export const useRunStore = create<RunState>()((set, get) => {
         await get().start();
         return;
       }
-      const root = useWorkspaceStore.getState().root;
       const target = task ?? null;
+      const cwd = target?.cwd || useWorkspaceStore.getState().root;
       const taskId = target?.id ?? run.taskId;
       const command = target?.command ?? run.command;
       const token = ++runToken;
@@ -332,7 +332,7 @@ export const useRunStore = create<RunState>()((set, get) => {
       useUiStore.getState().setConsoleVisible(true);
       get().appendLog(`Restarting: ${command}`, 'info');
       try {
-        const handle = await taskRestart(root, run.runId, taskId, command, makeHandler(token));
+        const handle = await taskRestart(cwd, run.runId, taskId, command, makeHandler(token));
         if (token !== runToken) return;
         const latest = get().run;
         if (latest) set({ run: { ...latest, runId: handle.runId, status: 'running' } });

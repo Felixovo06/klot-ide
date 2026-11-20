@@ -3,9 +3,10 @@ use grep_regex::RegexMatcherBuilder;
 use grep_searcher::{BinaryDetection, SearcherBuilder, Sink, SinkMatch};
 use ignore::WalkBuilder;
 use serde::Serialize;
+use std::collections::HashSet;
 use std::fs;
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 use tauri::ipc::Channel;
 
@@ -151,64 +152,83 @@ where
         .line_number(true)
         .build();
 
-    let walker = WalkBuilder::new(root)
-        .hidden(false)
-        .git_ignore(true)
-        .filter_entry(|entry| {
-            if entry.depth() == 0 {
-                return true;
-            }
-            if let Some(name) = entry.file_name().to_str() {
-                if should_skip_entry(name) {
-                    return false;
-                }
-            }
-            true
-        })
-        .build();
+    let nested_repos = crate::fs_tree::discover_nested_git_repos(root);
+    let nested_abs_set: HashSet<PathBuf> = nested_repos.iter().map(|rel| root.join(rel)).collect();
+    let mut walk_roots = Vec::with_capacity(1 + nested_repos.len());
+    walk_roots.push(root.to_path_buf());
+    for sub_rel in nested_repos {
+        walk_roots.push(root.join(sub_rel));
+    }
 
     const MAX_TOTAL_MATCHES: usize = 5000;
     let mut total_files = 0;
     let mut total_matches = 0;
     let mut truncated = false;
 
-    for entry_res in walker {
-        let Ok(entry) = entry_res else {
-            continue;
-        };
-        if !entry.file_type().map(|ft| ft.is_file()).unwrap_or(false) {
-            continue;
-        }
-        let abs_path = entry.path();
-        let rel_path = match abs_path.strip_prefix(root) {
-            Ok(r) => r.to_string_lossy().replace('\\', "/"),
-            Err(_) => continue,
-        };
+    'outer: for walk_root in walk_roots {
+        let skip_set = nested_abs_set.clone();
+        let walk_root_buf = walk_root.clone();
 
-        let mut sink = FileMatchSink {
-            matcher: &matcher,
-            matches: Vec::new(),
-            total_count: 0,
-            max_remaining: MAX_TOTAL_MATCHES.saturating_sub(total_matches),
-        };
+        let walker = WalkBuilder::new(&walk_root)
+            .hidden(false)
+            .git_ignore(true)
+            .git_global(true)
+            .git_exclude(true)
+            .filter_entry(move |entry| {
+                if entry.depth() == 0 {
+                    return true;
+                }
+                if let Some(name) = entry.file_name().to_str() {
+                    if should_skip_entry(name) {
+                        return false;
+                    }
+                }
+                let p = entry.path();
+                if p != walk_root_buf && skip_set.contains(p) {
+                    return false;
+                }
+                true
+            })
+            .build();
 
-        if searcher.search_path(&matcher, abs_path, &mut sink).is_err() {
-            continue;
-        }
+        for entry_res in walker {
+            let Ok(entry) = entry_res else {
+                continue;
+            };
+            if !entry.file_type().map(|ft| ft.is_file()).unwrap_or(false) {
+                continue;
+            }
+            let abs_path = entry.path();
+            let rel_path = match abs_path.strip_prefix(root) {
+                Ok(r) => r.to_string_lossy().replace('\\', "/"),
+                Err(_) => continue,
+            };
 
-        if !sink.matches.is_empty() {
-            total_files += 1;
-            total_matches += sink.total_count;
-            emit(SearchStreamEvent::Match(SearchFileResult {
-                path: rel_path,
-                full_path: abs_path.to_string_lossy().into_owned(),
-                matches: sink.matches,
-            }));
-        }
+            let mut sink = FileMatchSink {
+                matcher: &matcher,
+                matches: Vec::new(),
+                total_count: 0,
+                max_remaining: MAX_TOTAL_MATCHES.saturating_sub(total_matches),
+            };
 
-        if total_matches >= MAX_TOTAL_MATCHES {
-            truncated = true;
-            break;
+            if searcher.search_path(&matcher, abs_path, &mut sink).is_err() {
+                continue;
+            }
+
+            if !sink.matches.is_empty() {
+                total_files += 1;
+                total_matches += sink.total_count;
+                emit(SearchStreamEvent::Match(SearchFileResult {
+                    path: rel_path,
+                    full_path: abs_path.to_string_lossy().into_owned(),
+                    matches: sink.matches,
+                }));
+            }
+
+            if total_matches >= MAX_TOTAL_MATCHES {
+                truncated = true;
+                break 'outer;
+            }
         }
     }
 

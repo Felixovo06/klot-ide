@@ -7,9 +7,11 @@ import {
   File,
   FilePlus,
   Folder,
+  FolderGit2,
   FolderOpen,
   FolderPlus,
   FolderSearch,
+  GitBranch,
   Pencil,
   SquareTerminal,
   Trash2,
@@ -17,7 +19,7 @@ import {
 import { fsRevealInFinder } from '../lib/ipcClient';
 import type { FsTreeNode, GitFileStatusCode } from '../types/ipc';
 import { useCliStore } from '../stores/cliStore';
-import { useGitStore } from '../stores/gitStore';
+import { joinRepoRel, useGitStore } from '../stores/gitStore';
 import { useUiStore } from '../stores/uiStore';
 import { dirname, joinPath } from '../stores/utils';
 import { useWorkspaceStore } from '../stores/workspaceStore';
@@ -184,18 +186,28 @@ export function FileTree() {
   const startTreeCreate = useWorkspaceStore((s) => s.startTreeCreate);
   const renameEntry = useWorkspaceStore((s) => s.renameEntry);
   const deleteEntry = useWorkspaceStore((s) => s.deleteEntry);
+  const switchWorkspace = useWorkspaceStore((s) => s.switchWorkspace);
   const status = useGitStore((s) => s.status);
+  const repos = useGitStore((s) => s.repos);
+  const activeRepoRel = useGitStore((s) => s.activeRepoRel);
+  const selectRepo = useGitStore((s) => s.selectRepo);
 
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [ctxMenu, setCtxMenu] = useState<CtxTarget | null>(null);
 
+  const repoByRel = useMemo(() => {
+    const map = new Map<string, (typeof repos)[number]>();
+    for (const r of repos) map.set(r.relPath, r);
+    return map;
+  }, [repos]);
+
   const marks = useMemo(() => {
     const map = new Map<string, GitFileStatusCode>();
     if (!status?.isRepo) return map;
-    for (const c of status.staged) map.set(c.path, c.status);
-    for (const c of status.changes) map.set(c.path, c.status);
+    for (const c of status.staged) map.set(joinRepoRel(activeRepoRel, c.path), c.status);
+    for (const c of status.changes) map.set(joinRepoRel(activeRepoRel, c.path), c.status);
     return map;
-  }, [status]);
+  }, [status, activeRepoRel]);
 
   const rows = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -268,6 +280,28 @@ export function FileTree() {
       },
     });
 
+    if (node && node.isGitRepo) {
+      items.push(
+        {
+          key: 'switch-repo-git',
+          label: '切换到该仓库 Git 视图',
+          icon: GitBranch,
+          onSelect: () => {
+            selectRepo(node.fullPath);
+            useUiStore.getState().setMode('git');
+          },
+        },
+        {
+          key: 'open-as-workspace',
+          label: '作为独立项目打开',
+          icon: FolderOpen,
+          onSelect: () => {
+            void switchWorkspace(node.fullPath);
+          },
+        },
+      );
+    }
+
     items.push({ kind: 'divider', key: 'div-path' });
 
     if (node) {
@@ -294,7 +328,7 @@ export function FileTree() {
       },
     );
     return items;
-  }, [ctxMenu, root, startTreeCreate, deleteEntry]);
+  }, [ctxMenu, root, startTreeCreate, deleteEntry, selectRepo, switchWorkspace]);
 
   if (!treeLoaded) return <div className="onyx-empty-hint">Loading...</div>;
 
@@ -316,6 +350,7 @@ export function FileTree() {
       {showRootDraft && <DraftRow mode={treeDraft.mode} parentDir="" depth={0} />}
       {rows.map(({ node, depth, expanded: isOpen }) => {
         const mark = marks.get(node.path);
+        const repoSummary = node.isGitRepo ? repoByRel.get(node.path) : undefined;
         const selected = (!node.isDir && node.path === activePath) || node.path === selectedTreePath;
         const isRenaming = renamingPath === node.path;
         const showChildDraft = !!treeDraft && treeDraft.parentDir === node.path;
@@ -349,7 +384,9 @@ export function FileTree() {
                       <ChevronRight size={13} strokeWidth={ICON_STROKE} />
                     )}
                   </span>
-                  {isOpen ? (
+                  {node.isGitRepo ? (
+                    <FolderGit2 size={15} strokeWidth={ICON_STROKE} className="onyx-tree-icon is-repo" />
+                  ) : isOpen ? (
                     <FolderOpen size={15} strokeWidth={ICON_STROKE} className="onyx-tree-icon" />
                   ) : (
                     <Folder size={15} strokeWidth={ICON_STROKE} className="onyx-tree-icon" />
@@ -375,6 +412,17 @@ export function FileTree() {
               ) : (
                 <>
                   <span className="onyx-tree-name">{node.name}</span>
+                  {node.isGitRepo && repoSummary && (
+                    <span
+                      className="onyx-tree-repo-meta"
+                      title={`${repoSummary.name}${repoSummary.branch ? ` (${repoSummary.branch})` : ''}`}
+                    >
+                      {repoSummary.branch && <span className="onyx-tree-repo-branch">{repoSummary.branch}</span>}
+                      {repoSummary.changedCount > 0 && (
+                        <span className="onyx-tree-repo-count">{repoSummary.changedCount}</span>
+                      )}
+                    </span>
+                  )}
                   {dirtySet.has(node.path) && <span className="onyx-dirty-dot" />}
                   {mark && !node.isDir && <GitStatusLetter status={mark} />}
                 </>

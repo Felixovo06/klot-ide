@@ -12,6 +12,7 @@ import {
   gitFetch,
   gitGraph,
   gitInit,
+  gitListRepos,
   gitLog,
   gitPull,
   gitPush,
@@ -30,11 +31,12 @@ import type {
   GitDiffResult,
   GitFileChange,
   GitGraphNode,
+  GitRepoSummary,
   GitStashEntry,
   GitStatusResult,
 } from '../types/ipc';
 import { toast } from './uiStore';
-import { errorMessage } from './utils';
+import { errorMessage, normalizeSlashes } from './utils';
 import { useWorkspaceStore } from './workspaceStore';
 
 export interface GitSelection {
@@ -57,6 +59,11 @@ interface GitState {
   busy: boolean;
   statusVersion: number;
   initializing: boolean;
+
+  // 多仓库支持
+  repos: GitRepoSummary[];
+  activeRepoRoot: string;
+  activeRepoRel: string;
 
   // 三视图工作台
   gitTab: GitTab;
@@ -88,6 +95,11 @@ interface GitState {
   compareDiffLoading: boolean;
 
   /** silent: 静默同步（失败不弹 toast），用于 CLI 输出静止、窗口聚焦等自动触发点 */
+  refreshRepos: (opts?: { silent?: boolean }) => Promise<void>;
+  selectRepo: (repoRootPath: string) => void;
+  syncRepoByFilePath: (workspaceFileRel: string) => void;
+  repoForFile: (workspaceFileRel: string) => GitRepoSummary | null;
+  toWorkspaceRel: (repoRelPath: string) => string;
   refresh: (opts?: { silent?: boolean }) => Promise<void>;
   refreshBranches: () => Promise<void>;
   initRepo: () => Promise<boolean>;
@@ -121,16 +133,58 @@ interface GitState {
   resetForWorkspace: () => void;
 }
 
-function rootOf(): string {
-  return useWorkspaceStore.getState().root;
-}
-
+let reposToken = 0;
+let statusToken = 0;
 let diffToken = 0;
 let graphToken = 0;
 let detailToken = 0;
 let commitDiffToken = 0;
 let compareToken = 0;
 let compareDiffToken = 0;
+
+function resetRepoTokens() {
+  statusToken += 1;
+  diffToken += 1;
+  graphToken += 1;
+  detailToken += 1;
+  commitDiffToken += 1;
+  compareToken += 1;
+  compareDiffToken += 1;
+}
+
+function repoRootOf(): string {
+  return useGitStore.getState().activeRepoRoot || useWorkspaceStore.getState().root;
+}
+
+export function joinRepoRel(repoRel: string, path: string): string {
+  const clean = normalizeSlashes(path).replace(/^\.\//, '');
+  if (!repoRel) return clean;
+  if (!clean) return repoRel;
+  return clean === repoRel || clean.startsWith(`${repoRel}/`) ? clean : `${repoRel}/${clean}`;
+}
+
+export function findRepoForFile(repos: GitRepoSummary[], workspaceFileRel: string): GitRepoSummary | null {
+  if (repos.length === 0) return null;
+  const rel = normalizeSlashes(workspaceFileRel).replace(/^\.\//, '');
+  let best: GitRepoSummary | null = null;
+  let bestLen = -1;
+  for (const r of repos) {
+    if (!r.relPath) {
+      if (0 > bestLen) {
+        best = r;
+        bestLen = 0;
+      }
+      continue;
+    }
+    if (rel === r.relPath || rel.startsWith(`${r.relPath}/`)) {
+      if (r.relPath.length > bestLen) {
+        best = r;
+        bestLen = r.relPath.length;
+      }
+    }
+  }
+  return best;
+}
 
 /** 按约定规则推导默认对比引用：优先 main / origin/main 对比当前分支，否则当前分支对比工作区 */
 export function defaultCompareRefs(
@@ -158,6 +212,10 @@ function sameDiff(a: GitDiffResult | null, b: GitDiffResult): boolean {
 }
 
 export const useGitStore = create<GitState>()((set, get) => ({
+  repos: [],
+  activeRepoRoot: '',
+  activeRepoRel: '',
+
   status: null,
   log: [],
   branches: [],
@@ -194,6 +252,127 @@ export const useGitStore = create<GitState>()((set, get) => ({
   compareDiff: null,
   compareDiffLoading: false,
 
+  refreshRepos: async (opts) => {
+    const wsRoot = useWorkspaceStore.getState().root;
+    if (!wsRoot) return;
+    const token = ++reposToken;
+    let repos: GitRepoSummary[] = [];
+    try {
+      repos = await gitListRepos(wsRoot);
+    } catch {
+      repos = [];
+    }
+    if (token !== reposToken) return;
+
+    const prevActive = get().activeRepoRoot;
+    const existing = prevActive ? repos.find((r) => r.rootPath === prevActive) : null;
+    let target: GitRepoSummary | null = existing ?? null;
+    if (!target && repos.length > 0) {
+      const rootRepo = repos.find((r) => r.isRoot);
+      const changedRepo = repos.find((r) => r.changedCount > 0);
+      target =
+        (rootRepo && (rootRepo.changedCount > 0 || !changedRepo) ? rootRepo : changedRepo) ??
+        rootRepo ??
+        repos[0] ??
+        null;
+    }
+
+    const nextRoot = target?.rootPath ?? '';
+    const nextRel = target?.relPath ?? '';
+    const repoChanged = nextRoot !== prevActive;
+
+    if (repoChanged) {
+      resetRepoTokens();
+      set({
+        repos,
+        activeRepoRoot: nextRoot,
+        activeRepoRel: nextRel,
+        selected: null,
+        diff: null,
+        diffLoading: false,
+        graphNodes: [],
+        graphLoading: false,
+        graphLoaded: false,
+        selectedCommitHash: null,
+        commitDetail: null,
+        commitDetailLoading: false,
+        commitFileSelected: null,
+        commitDiff: null,
+        commitDiffLoading: false,
+        compareBase: '',
+        compareHead: '',
+        compareResult: null,
+        compareLoading: false,
+        compareError: null,
+        compareFileSelected: null,
+        compareDiff: null,
+        compareDiffLoading: false,
+      });
+    } else {
+      set({ repos, activeRepoRel: nextRel });
+    }
+
+    if (repoChanged || !get().status) {
+      await Promise.all([get().refresh(opts), get().refreshBranches()]);
+      const { gitTab } = get();
+      if (gitTab === 'graph') void get().loadGraph({ silent: true });
+      if (gitTab === 'compare') {
+        get().ensureCompareDefaults();
+        void get().loadCompare({ silent: true });
+      }
+    }
+  },
+
+  selectRepo: (repoRootPath) => {
+    const target = get().repos.find((r) => r.rootPath === repoRootPath);
+    if (!target) return;
+    if (target.rootPath === get().activeRepoRoot && get().status) return;
+    resetRepoTokens();
+    set({
+      activeRepoRoot: target.rootPath,
+      activeRepoRel: target.relPath,
+      selected: null,
+      diff: null,
+      diffLoading: false,
+      graphNodes: [],
+      graphLoading: false,
+      graphLoaded: false,
+      selectedCommitHash: null,
+      commitDetail: null,
+      commitDetailLoading: false,
+      commitFileSelected: null,
+      commitDiff: null,
+      commitDiffLoading: false,
+      compareBase: '',
+      compareHead: '',
+      compareResult: null,
+      compareLoading: false,
+      compareError: null,
+      compareFileSelected: null,
+      compareDiff: null,
+      compareDiffLoading: false,
+    });
+    void get().refresh({ silent: true });
+    void get().refreshBranches();
+    const { gitTab } = get();
+    if (gitTab === 'graph') void get().loadGraph({ silent: true });
+    if (gitTab === 'compare') {
+      get().ensureCompareDefaults();
+      void get().loadCompare({ silent: true });
+    }
+  },
+
+  repoForFile: (workspaceFileRel) => findRepoForFile(get().repos, workspaceFileRel),
+
+  syncRepoByFilePath: (workspaceFileRel) => {
+    const hit = get().repoForFile(workspaceFileRel);
+    if (hit && hit.rootPath !== get().activeRepoRoot) {
+      get().selectRepo(hit.rootPath);
+    }
+  },
+
+  toWorkspaceRel: (repoRelPath) => joinRepoRel(get().activeRepoRel, repoRelPath),
+
   setGitTab: (gitTab) => {
     set({ gitTab });
     if (gitTab === 'graph' && !get().graphLoaded) void get().loadGraph();
@@ -204,7 +383,7 @@ export const useGitStore = create<GitState>()((set, get) => ({
   },
 
   fetchRemotes: async () => {
-    const root = rootOf();
+    const root = repoRootOf();
     if (!root || get().fetching) return;
     set({ fetching: true });
     try {
@@ -222,7 +401,7 @@ export const useGitStore = create<GitState>()((set, get) => ({
   },
 
   push: async () => {
-    const root = rootOf();
+    const root = repoRootOf();
     if (!root || get().remoteBusy) return;
     set({ remoteBusy: 'push' });
     try {
@@ -238,7 +417,7 @@ export const useGitStore = create<GitState>()((set, get) => ({
   },
 
   pull: async () => {
-    const root = rootOf();
+    const root = repoRootOf();
     if (!root || get().remoteBusy) return;
     set({ remoteBusy: 'pull' });
     try {
@@ -258,7 +437,7 @@ export const useGitStore = create<GitState>()((set, get) => ({
   },
 
   stashPush: async (message) => {
-    const root = rootOf();
+    const root = repoRootOf();
     if (!root || get().remoteBusy) return false;
     set({ remoteBusy: 'stash' });
     try {
@@ -279,7 +458,7 @@ export const useGitStore = create<GitState>()((set, get) => ({
   },
 
   stashPop: async (index) => {
-    const root = rootOf();
+    const root = repoRootOf();
     if (!root || get().remoteBusy) return false;
     set({ remoteBusy: 'stash' });
     try {
@@ -300,7 +479,7 @@ export const useGitStore = create<GitState>()((set, get) => ({
   },
 
   loadGraph: async (opts) => {
-    const root = rootOf();
+    const root = repoRootOf();
     if (!root) return;
     const { status } = get();
     if (status && !status.isRepo) {
@@ -329,7 +508,7 @@ export const useGitStore = create<GitState>()((set, get) => ({
   },
 
   selectCommit: async (hash) => {
-    const root = rootOf();
+    const root = repoRootOf();
     const token = ++detailToken;
     commitDiffToken += 1;
     set({
@@ -356,7 +535,7 @@ export const useGitStore = create<GitState>()((set, get) => ({
   },
 
   selectCommitFile: async (file) => {
-    const root = rootOf();
+    const root = repoRootOf();
     const hash = get().selectedCommitHash;
     const token = ++commitDiffToken;
     set({ commitFileSelected: file });
@@ -412,7 +591,7 @@ export const useGitStore = create<GitState>()((set, get) => ({
   },
 
   loadCompare: async (opts) => {
-    const root = rootOf();
+    const root = repoRootOf();
     get().ensureCompareDefaults();
     const { compareBase, compareHead, compareThreeDot, status } = get();
     if (!root || !compareBase || !compareHead) return;
@@ -435,7 +614,7 @@ export const useGitStore = create<GitState>()((set, get) => ({
   },
 
   selectCompareFile: async (file) => {
-    const root = rootOf();
+    const root = repoRootOf();
     const { compareBase, compareHead, compareThreeDot } = get();
     const token = ++compareDiffToken;
     set({ compareFileSelected: file });
@@ -456,8 +635,9 @@ export const useGitStore = create<GitState>()((set, get) => ({
   },
 
   refresh: async (opts) => {
-    const root = rootOf();
+    const root = repoRootOf();
     if (!root) return;
+    const token = ++statusToken;
     const prevTop = get().log[0]?.hash ?? '';
     try {
       const [status, log, stashes] = await Promise.all([
@@ -465,13 +645,26 @@ export const useGitStore = create<GitState>()((set, get) => ({
         gitLog(root, 20).catch(() => [] as GitCommitInfo[]),
         gitStashList(root).catch(() => [] as GitStashEntry[]),
       ]);
+      if (token !== statusToken || repoRootOf() !== root) return;
       set((s) => ({
         status,
         log: status.isRepo ? log : [],
         stashes: status.isRepo ? stashes : [],
+        repos: s.repos.map((r) =>
+          r.rootPath === root
+            ? {
+                ...r,
+                branch: status.branch || r.branch,
+                ahead: status.ahead,
+                behind: status.behind,
+                changedCount: status.totalChanges,
+              }
+            : r,
+        ),
         statusVersion: s.statusVersion + 1,
       }));
     } catch {
+      if (token !== statusToken || repoRootOf() !== root) return;
       set((s) => ({
         status: {
           isRepo: false,
@@ -506,7 +699,7 @@ export const useGitStore = create<GitState>()((set, get) => ({
   },
 
   initRepo: async () => {
-    const root = rootOf();
+    const root = repoRootOf();
     if (!root || get().initializing) return false;
     set({ initializing: true });
     try {
@@ -518,13 +711,13 @@ export const useGitStore = create<GitState>()((set, get) => ({
       return false;
     } finally {
       set({ initializing: false });
-      await Promise.all([get().refresh(), get().refreshBranches()]);
+      await get().refreshRepos();
       await useWorkspaceStore.getState().refreshTree();
     }
   },
 
   refreshBranches: async () => {
-    const root = rootOf();
+    const root = repoRootOf();
     if (!root) return;
     try {
       set({ branches: await gitBranches(root) });
@@ -544,7 +737,7 @@ export const useGitStore = create<GitState>()((set, get) => ({
   },
 
   loadDiff: async (opts) => {
-    const root = rootOf();
+    const root = repoRootOf();
     const { selected } = get();
     if (!root || !selected) return;
     const token = ++diffToken;
@@ -565,7 +758,7 @@ export const useGitStore = create<GitState>()((set, get) => ({
   stage: async (paths) => {
     if (paths.length === 0) return;
     try {
-      await gitStage(rootOf(), paths);
+      await gitStage(repoRootOf(), paths);
       const { selected } = get();
       if (selected && paths.includes(selected.path)) set({ selected: { ...selected, staged: true } });
     } catch (e) {
@@ -577,7 +770,7 @@ export const useGitStore = create<GitState>()((set, get) => ({
   unstage: async (paths) => {
     if (paths.length === 0) return;
     try {
-      await gitUnstage(rootOf(), paths);
+      await gitUnstage(repoRootOf(), paths);
       const { selected } = get();
       if (selected && paths.includes(selected.path)) set({ selected: { ...selected, staged: false } });
     } catch (e) {
@@ -591,8 +784,8 @@ export const useGitStore = create<GitState>()((set, get) => ({
     const label = paths.length === 1 ? paths[0] : `${paths.length} 个文件`;
     if (!window.confirm(`确定丢弃 ${label} 的全部未暂存修改吗？此操作不可撤销。`)) return;
     try {
-      await gitDiscard(rootOf(), paths);
-      await useWorkspaceStore.getState().reloadFromDisk(paths);
+      await gitDiscard(repoRootOf(), paths);
+      await useWorkspaceStore.getState().reloadFromDisk(paths.map((p) => get().toWorkspaceRel(p)));
     } catch (e) {
       toast('error', `丢弃修改失败：${errorMessage(e)}`);
     }
@@ -615,11 +808,11 @@ export const useGitStore = create<GitState>()((set, get) => ({
           return false;
         }
         await gitStage(
-          rootOf(),
+          repoRootOf(),
           status.changes.map((c) => c.path),
         );
       }
-      const info = await gitCommit(rootOf(), msg);
+      const info = await gitCommit(repoRootOf(), msg);
       toast('success', `已提交 ${info.shortHash} ${info.message}`);
       return true;
     } catch (e) {
@@ -628,14 +821,16 @@ export const useGitStore = create<GitState>()((set, get) => ({
     } finally {
       set({ busy: false });
       await get().refresh();
+      void get().refreshRepos({ silent: true });
     }
   },
 
   checkout: async (branch, create = false) => {
     try {
-      await gitCheckout(rootOf(), branch, create);
+      await gitCheckout(repoRootOf(), branch, create);
       toast('success', create ? `已创建并切换到 ${branch}` : `已切换到 ${branch}`);
       await Promise.all([get().refresh(), get().refreshBranches()]);
+      void get().refreshRepos({ silent: true });
       await useWorkspaceStore.getState().refreshTree();
       await useWorkspaceStore.getState().reloadFromDisk();
       return true;
@@ -646,13 +841,12 @@ export const useGitStore = create<GitState>()((set, get) => ({
   },
 
   resetForWorkspace: () => {
-    diffToken += 1;
-    graphToken += 1;
-    detailToken += 1;
-    commitDiffToken += 1;
-    compareToken += 1;
-    compareDiffToken += 1;
+    reposToken += 1;
+    resetRepoTokens();
     set((s) => ({
+      repos: [],
+      activeRepoRoot: '',
+      activeRepoRel: '',
       status: null,
       log: [],
       branches: [],

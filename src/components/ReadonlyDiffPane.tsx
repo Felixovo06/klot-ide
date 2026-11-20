@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ExternalLink, FileText, GitCompare } from 'lucide-react';
 import type { GitDiffResult, GitFileChange } from '../types/ipc';
+import { useGitStore } from '../stores/gitStore';
 import { useUiStore } from '../stores/uiStore';
 import { languageForPath } from '../stores/utils';
 import { useWorkspaceStore } from '../stores/workspaceStore';
@@ -17,6 +18,7 @@ export function ReadonlyDiffPane({
   emptyText,
   tag,
   canOpenFile = true,
+  resolveOpenPath,
 }: {
   file: GitFileChange | null;
   diff: GitDiffResult | null;
@@ -25,6 +27,7 @@ export function ReadonlyDiffPane({
   /** 头部右侧的上下文标签，例如提交短 Hash 或 base..head */
   tag?: ReactNode;
   canOpenFile?: boolean;
+  resolveOpenPath?: (repoPath: string) => string;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneDiffEditor | null>(null);
@@ -110,8 +113,9 @@ export function ReadonlyDiffPane({
 
   const openFile = () => {
     if (!file || file.status === 'D') return;
+    const wsPath = resolveOpenPath ? resolveOpenPath(file.path) : useGitStore.getState().toWorkspaceRel(file.path);
     useUiStore.getState().setMode('code');
-    void useWorkspaceStore.getState().openFile(file.path);
+    void useWorkspaceStore.getState().openFile(wsPath);
   };
 
   return (

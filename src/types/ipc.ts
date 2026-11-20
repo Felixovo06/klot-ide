@@ -25,6 +25,7 @@ export interface FsTreeNode {
   path: string; // 相对工作区路径，POSIX 分隔符
   fullPath: string; // 磁盘绝对路径
   isDir: boolean;
+  isGitRepo?: boolean;
   size?: number;
   children?: FsTreeNode[];
 }
@@ -179,6 +180,17 @@ export interface GitStashEntry {
   refName: string;
   message: string;
   relativeTime: string;
+}
+
+export interface GitRepoSummary {
+  relPath: string;
+  rootPath: string;
+  name: string;
+  branch: string;
+  ahead: number;
+  behind: number;
+  changedCount: number;
+  isRoot: boolean;
 }
 
 // ==================== 任务运行器 (task_runner.rs) ====================

@@ -52,7 +52,13 @@ export function TopBar() {
   const consoleVisible = useUiStore((s) => s.consoleVisible);
   const toggleConsole = useUiStore((s) => s.toggleConsole);
   const openQuickOpen = useUiStore((s) => s.openQuickOpen);
-  const gitCount = useGitStore((s) => (s.status?.isRepo ? s.status.totalChanges : 0));
+  const gitCount = useGitStore((s) =>
+    s.repos.length > 0
+      ? s.repos.reduce((acc, r) => acc + r.changedCount, 0)
+      : s.status?.isRepo
+        ? s.status.totalChanges
+        : 0
+  );
 
   return (
     <header className="onyx-topbar" data-tauri-drag-region>

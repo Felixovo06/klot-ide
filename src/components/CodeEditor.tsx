@@ -230,8 +230,16 @@ export function CodeEditor() {
       ]);
     };
 
-    const status = useGitStore.getState().status;
-    const change = findChange(status, activePath);
+    const git = useGitStore.getState();
+    const ownerRepo = git.repoForFile(activePath);
+    const repoRoot = ownerRepo?.rootPath || root;
+    const innerPath =
+      ownerRepo && ownerRepo.relPath && activePath.startsWith(`${ownerRepo.relPath}/`)
+        ? activePath.slice(ownerRepo.relPath.length + 1)
+        : activePath;
+    const matchesActiveRepo = !ownerRepo || !git.activeRepoRoot || ownerRepo.rootPath === git.activeRepoRoot;
+    const status = matchesActiveRepo ? git.status : null;
+    const change = findChange(status, innerPath);
     const load = async () => {
       if (!change || !status?.isRepo) {
         base = null;
@@ -239,8 +247,8 @@ export function CodeEditor() {
         base = '';
       } else {
         try {
-          const inStaged = status.staged.some((c) => c.path === activePath);
-          const diff = await gitDiffFile(root, activePath, inStaged);
+          const inStaged = status.staged.some((c) => c.path === innerPath);
+          const diff = await gitDiffFile(repoRoot, innerPath, inStaged);
           base = diff.isBinary ? null : diff.originalText;
         } catch {
           base = null;
